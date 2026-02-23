@@ -4,6 +4,23 @@ import { Bookmark, Layers, Moon, Sun, MoreHorizontal } from "lucide-react";
 import { T } from "../lib/theme";
 import { NavBar } from "../components/NavBar";
 
+const ImageWithSkeleton = ({ src, style, ...props }) => {
+    const [loaded, setLoaded] = useState(false);
+    return (
+        <>
+            {!loaded && (
+                <div style={{ ...style, position: "absolute", inset: 0, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+            )}
+            <img
+                src={src}
+                style={{ ...style, opacity: loaded ? 1 : 0, transition: "opacity 300ms ease" }}
+                onLoad={() => setLoaded(true)}
+                {...props}
+            />
+        </>
+    );
+};
+
 export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, setCurrentTab, savedImages, toggleSave, hovered, setHovered, loaded, gridPadding, setGridPadding, themeMode, setThemeMode, hideImage, showToast, user, signInWithGoogle, signOut, deleteImage }) => {
     const ww = useWindowWidth();
     const cols = ww < 640 ? 2 : ww < 1024 ? 3 : 4;
@@ -203,7 +220,7 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
                                                     />
                                                 </div>
                                             ) : (
-                                                <img
+                                                <ImageWithSkeleton
                                                     src={img.src}
                                                     alt=""
                                                     draggable={false}

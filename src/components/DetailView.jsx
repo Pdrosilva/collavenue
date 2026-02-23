@@ -7,6 +7,23 @@ import { FloatingActions } from "./FloatingActions";
 import { T } from "../lib/theme";
 import { useWindowWidth } from "../lib/useWindowWidth";
 
+const ImageWithSkeleton = ({ src, style, ...props }) => {
+    const [loaded, setLoaded] = useState(false);
+    return (
+        <>
+            {!loaded && (
+                <div style={{ ...style, position: "absolute", inset: 0, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+            )}
+            <img
+                src={src}
+                style={{ ...style, opacity: loaded ? 1 : 0, transition: "opacity 300ms ease" }}
+                onLoad={() => setLoaded(true)}
+                {...props}
+            />
+        </>
+    );
+};
+
 export const DetailView = ({
     images,
     selectedImage,
@@ -258,7 +275,7 @@ export const DetailView = ({
                                             />
                                         </div>
                                     ) : (
-                                        <img src={img.src} alt="" draggable={false} style={{ width: "100%", height: "100%", display: "block", borderRadius: T.rImg, objectFit: "cover", pointerEvents: "none" }} />
+                                        <ImageWithSkeleton src={img.src} alt="" draggable={false} style={{ width: "100%", height: "100%", display: "block", borderRadius: T.rImg, objectFit: "cover", pointerEvents: "none" }} />
                                     )}
 
                                 </div>
