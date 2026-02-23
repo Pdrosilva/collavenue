@@ -59,6 +59,36 @@ export default function App() {
             setLoaded(true);
         };
         fetchWorkspaces();
+
+        // Subscribe to real-time workspaces so that everyone sees new images instantly without refreshing
+        const channel = supabase.channel('public:workspaces')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'workspaces' },
+                (payload) => {
+                    const d = payload.new;
+                    if (d.status === 'active') {
+                        setImages(prev => {
+                            if (prev.find(img => img.id === d.id)) return prev;
+                            const newImg = { id: d.id, src: d.src, w: d.width || 440, h: d.height || 440 };
+                            return [newImg, ...prev];
+                        });
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'workspaces' },
+                (payload) => {
+                    const d = payload.new;
+                    if (d.status === 'deleted') {
+                        setImages(prev => prev.filter(img => img.id !== d.id));
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => supabase.removeChannel(channel);
     }, []);
 
     // Fetch saved images when user changes
@@ -118,6 +148,17 @@ export default function App() {
                 .eq("workspace_id", activeWspId)
                 .order("created_at", { ascending: true }); // older first or newer first based on UI preference
 
+            let userLikes = [];
+            if (user && data && data.length > 0) {
+                const commentIds = data.map(c => c.id);
+                const { data: likesData } = await supabase
+                    .from("comment_likes")
+                    .select("comment_id")
+                    .eq("user_id", user.id)
+                    .in("comment_id", commentIds);
+                if (likesData) userLikes = likesData.map(l => l.comment_id);
+            }
+
             if (!error && data) {
                 const mapped = data.map(c => ({
                     id: c.id,
@@ -129,7 +170,7 @@ export default function App() {
                     pinX: c.pin_x,
                     pinY: c.pin_y,
                     stars: c.stars,
-                    starred: false, // Local state 
+                    starred: userLikes.includes(c.id), // Local state synced with user's likes 
                     time: "now", relativeTime: "" // Mocking time for now
                 }));
                 // Original app put newest first in the array `[new, ...prev]`
@@ -218,18 +259,29 @@ export default function App() {
     };
 
     const toggleStar = async (id) => {
-        // Optimistic
-        setComments((p) =>
-            p.map((c) => (c.id === id ? { ...c, starred: !c.starred, stars: c.starred ? c.stars - 1 : c.stars + 1 } : c))
-        );
+        if (!user) {
+            showToast("Você precisa estar logado para curtir.");
+            return;
+        }
 
-        // Calculate new stars value to sync 
         const c = comments.find(c => c.id === id);
         if (!c) return;
-        const newStars = c.starred ? c.stars - 1 : c.stars + 1;
 
-        const { error } = await supabase.from('comments').update({ stars: newStars }).eq('id', id);
-        if (error) console.error("Toggle star failed", error);
+        const isStarred = c.starred;
+        const newStars = isStarred ? c.stars - 1 : c.stars + 1;
+
+        // Optimistic UI for instant feedback without delay
+        setComments((p) =>
+            p.map((c) => (c.id === id ? { ...c, starred: !isStarred, stars: newStars } : c))
+        );
+
+        if (isStarred) {
+            const { error } = await supabase.from('comment_likes').delete().match({ user_id: user.id, comment_id: id });
+            if (error) console.error("Toggle star failed", error);
+        } else {
+            const { error } = await supabase.from('comment_likes').insert([{ user_id: user.id, comment_id: id }]);
+            if (error) console.error("Toggle star failed", error);
+        }
     };
 
     const submitComment = async () => {
