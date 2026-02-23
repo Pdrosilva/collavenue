@@ -33,7 +33,10 @@ export default function App() {
     const [themeMode, setThemeMode] = useState("light");
     const [highlightedCommentId, setHighlightedCommentId] = useState(null);
     const [uploadingCount, setUploadingCount] = useState(0);
+    const [pendingDeletions, setPendingDeletions] = useState(new Set());
     const canvasRef = useRef(null);
+    const deleteTimeouts = useRef({});
+    const toastTimeoutRef = useRef(null);
 
     const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth();
 
@@ -371,41 +374,69 @@ export default function App() {
     };
 
     const deleteImage = async (id) => {
-        // Optimistic UI
+        // Find the image
+        const imgToDelete = images.find(img => img.id === id);
+        if (!imgToDelete) return;
+
+        // Optimistic UI hide
         setImages(prev => prev.filter(img => img.id !== id));
         if (selectedImage?.id === id) {
             closeDetail();
         }
 
-        // Hard delete in DB
-        const { error, data } = await supabase
-            .from('workspaces')
-            .delete()
-            .eq('id', id)
-            .select();
+        // Add to pending
+        setPendingDeletions(prev => new Set(prev).add(id));
 
-        if (error) {
-            console.error("Failed to delete workspace:", error);
-            showToast("Failed to remove image");
-        } else if (data && data.length === 0) {
-            // RLS blocked it (deleted 0 rows)
-            showToast("You don't have permission to remove this image.");
-            // Revert optimistic delete
-            const fetchOriginal = async () => {
-                const { data: orig } = await supabase.from('workspaces').select('*').eq('id', id).single();
-                if (orig) {
-                    setImages(prev => [{ id: orig.id, src: orig.src, w: orig.width || 440, h: orig.height || 440, createdBy: orig.created_by }, ...prev]);
+        showToast("Successfully removed", 4000, {
+            label: "Undo",
+            onClick: () => {
+                if (deleteTimeouts.current[id]) {
+                    clearTimeout(deleteTimeouts.current[id]);
+                    delete deleteTimeouts.current[id];
                 }
-            };
-            fetchOriginal();
-        } else {
-            showToast("Successfully removed");
-        }
+                setPendingDeletions(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(id);
+                    return newSet;
+                });
+                setImages(prev => {
+                    if (prev.find(img => img.id === id)) return prev;
+                    return [imgToDelete, ...prev];
+                });
+                setToastMsg(null);
+            }
+        });
+
+        // Schedule actual DB deletion
+        deleteTimeouts.current[id] = setTimeout(async () => {
+            setPendingDeletions(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(id);
+                return newSet;
+            });
+            delete deleteTimeouts.current[id];
+
+            const { error, data } = await supabase
+                .from('workspaces')
+                .delete()
+                .eq('id', id)
+                .select();
+
+            if (error) {
+                console.error("Failed to delete workspace:", error);
+                showToast("Failed to remove image");
+                setImages(prev => [imgToDelete, ...prev]);
+            } else if (data && data.length === 0) {
+                showToast("You don't have permission to remove this image.");
+                setImages(prev => [imgToDelete, ...prev]);
+            }
+        }, 4000);
     };
 
-    const showToast = (msg) => {
-        setToastMsg(msg);
-        setTimeout(() => setToastMsg(null), 3000);
+    const showToast = (text, duration = 3000, action = null) => {
+        setToastMsg({ text, action });
+        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+        toastTimeoutRef.current = setTimeout(() => setToastMsg(null), duration);
     };
 
     const handleFilesDrop = async (e, viewTarget, dropX, dropY) => {
@@ -577,8 +608,16 @@ export default function App() {
         >
             {/* Toast Notification */}
             {toastMsg && (
-                <div style={{ position: "fixed", bottom: 40, left: "50%", background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 400, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999, animation: "toastSlideUp 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
-                    {toastMsg}
+                <div style={{ position: "fixed", bottom: 40, left: "50%", background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 400, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999, animation: "toastSlideUp 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards", display: "flex", alignItems: "center", gap: 16 }}>
+                    <span>{toastMsg.text}</span>
+                    {toastMsg.action && (
+                        <button
+                            onClick={toastMsg.action.onClick}
+                            style={{ background: "none", border: "none", color: "#3B82F6", fontWeight: 500, cursor: "pointer", padding: 0, fontSize: 14, marginLeft: "auto" }}
+                        >
+                            {toastMsg.action.label}
+                        </button>
+                    )}
                 </div>
             )}
             <style>{`
@@ -587,8 +626,8 @@ export default function App() {
                     to { opacity: 1; transform: translate(-50%, 0); }
                 }
                 @keyframes uploadSlideUp {
-                    from { opacity: 0; transform: translateY(20px); }
-                    to { opacity: 1; transform: translateY(0); }
+                    from { opacity: 0; transform: translate(-50%, 20px); }
+                    to { opacity: 1; transform: translate(-50%, 0); }
                 }
                 @keyframes spin {
                     to { transform: rotate(360deg); }
@@ -597,7 +636,7 @@ export default function App() {
 
             {/* Uploading Pill */}
             {uploadingCount > 0 && (
-                <div style={{ position: "fixed", bottom: 40, right: 40, background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 500, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999, display: "flex", alignItems: "center", gap: 12, animation: "uploadSlideUp 300ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+                <div style={{ position: "fixed", bottom: toastMsg ? 96 : 40, left: "50%", transform: "translateX(-50%)", background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 500, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999, display: "flex", alignItems: "center", gap: 12, animation: "uploadSlideUp 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards", transition: "bottom 300ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                     <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${T.textTer}`, borderTopColor: T.text, animation: "spin 1s linear infinite" }} />
                     Uploading...
                 </div>
