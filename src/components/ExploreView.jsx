@@ -155,7 +155,7 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
 
                 {user && (
                     <span onClick={signOut} style={{ fontFamily: T.font, fontSize: 18, fontWeight: 400, color: "var(--text)", cursor: "pointer", marginTop: 4 }}>
-                        Sair da conta
+                        Sign out
                     </span>
                 )}
             </div>
@@ -163,7 +163,25 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
             <div
                 style={{ padding: ww < 640 ? "96px 15px 60px" : "104px 32px 60px", maxWidth: 1440, margin: "0 auto", minHeight: "calc(100vh - 80px)" }}
             >
-                {displayImages.length === 0 && isVisible ? (
+                {!isVisible ? (
+                    <div style={{ display: "flex", gap: gridPadding, transition: "gap 300ms ease" }}>
+                        {Array.from({ length: cols }).map((_, ci) => (
+                            <div key={`skel-col-${ci}`} style={{ flex: 1, display: "flex", flexDirection: "column", gap: gridPadding }}>
+                                {Array.from({ length: 3 }).map((_, ri) => (
+                                    <div
+                                        key={`skel-item-${ci}-${ri}`}
+                                        style={{
+                                            borderRadius: T.rImg,
+                                            background: "rgba(0,0,0,0.04)",
+                                            aspectRatio: `${[1.2, 0.8, 1.4, 0.9, 1.3, 1.1][(ci * 3 + ri) % 6]}`,
+                                            animation: "skeletonPulse 1.5s ease-in-out infinite",
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                ) : displayImages.length === 0 ? (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "15vh 32px", color: "var(--textTer)", fontFamily: T.font, textAlign: "center", animation: "fadeIn 300ms ease" }}>
                         <Bookmark size={48} strokeWidth={1.5} style={{ marginBottom: 24, opacity: 0.3 }} />
                         <span style={{ fontSize: 22, fontWeight: 400, color: "var(--text)", letterSpacing: "-0.02em" }}>Nothing here yet</span>
@@ -175,20 +193,6 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
                             <div key={ci} style={{ flex: 1, display: "flex", flexDirection: "column", gap: gridPadding, transition: "gap 300ms ease" }}>
                                 {col.map((img, ri) => {
                                     const isH = hovered === img.id;
-
-                                    if (!isVisible) {
-                                        return (
-                                            <div
-                                                key={`skeleton-${img.id}`}
-                                                style={{
-                                                    borderRadius: T.rImg,
-                                                    background: "rgba(0,0,0,0.05)",
-                                                    aspectRatio: `${img.w}/${img.h}`,
-                                                    animation: "skeletonPulse 1.5s ease-in-out infinite",
-                                                }}
-                                            />
-                                        );
-                                    }
 
                                     return (
                                         <div

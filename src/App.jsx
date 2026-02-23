@@ -260,7 +260,7 @@ export default function App() {
 
     const toggleStar = async (id) => {
         if (!user) {
-            showToast("Você precisa estar logado para curtir.");
+            showToast("You need to be logged in to like.");
             return;
         }
 
@@ -388,7 +388,9 @@ export default function App() {
 
         if (error) {
             console.error("Failed to delete workspace:", error);
-            showToast("Failed to delete image");
+            showToast("Failed to remove image");
+        } else {
+            showToast("Successfully removed");
         }
     };
 
