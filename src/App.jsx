@@ -32,6 +32,7 @@ export default function App() {
     const [gridPadding, setGridPadding] = useState(4);
     const [themeMode, setThemeMode] = useState("light");
     const [highlightedCommentId, setHighlightedCommentId] = useState(null);
+    const [uploadingCount, setUploadingCount] = useState(0);
     const canvasRef = useRef(null);
 
     const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth();
@@ -420,6 +421,7 @@ export default function App() {
         if (!files.length) return false;
 
         files.forEach(file => {
+            setUploadingCount(p => p + 1);
             const reader = new FileReader();
             reader.onload = (ev) => {
                 const src = ev.target.result;
@@ -482,9 +484,12 @@ export default function App() {
                             return [newImg, ...prev]; // explore view: newest first
                         });
                     }
+                    setUploadingCount(p => Math.max(0, p - 1));
                 };
+                img.onerror = () => setUploadingCount(p => Math.max(0, p - 1));
                 img.src = src;
             };
+            reader.onerror = () => setUploadingCount(p => Math.max(0, p - 1));
             reader.readAsDataURL(file);
         });
         return true;
@@ -581,7 +586,22 @@ export default function App() {
                     from { opacity: 0; transform: translate(-50%, 20px); }
                     to { opacity: 1; transform: translate(-50%, 0); }
                 }
+                @keyframes uploadSlideUp {
+                    from { opacity: 0; transform: translateY(20px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
             `}</style>
+
+            {/* Uploading Pill */}
+            {uploadingCount > 0 && (
+                <div style={{ position: "fixed", bottom: 40, right: 40, background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 500, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999, display: "flex", alignItems: "center", gap: 12, animation: "uploadSlideUp 300ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${T.textTer}`, borderTopColor: T.text, animation: "spin 1s linear infinite" }} />
+                    Uploading...
+                </div>
+            )}
 
             {view === "explore" && (
                 <ExploreView
