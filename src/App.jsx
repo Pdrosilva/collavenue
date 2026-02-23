@@ -42,7 +42,6 @@ export default function App() {
             const { data, error } = await supabase
                 .from("workspaces")
                 .select("*")
-                .eq("status", "active")
                 .order("created_at", { ascending: false });
 
             if (error) {
@@ -53,6 +52,7 @@ export default function App() {
                     src: d.src,
                     w: d.width || 440,
                     h: d.height || 440,
+                    createdBy: d.created_by,
                 }));
                 setImages(mapped);
             }
@@ -67,23 +67,19 @@ export default function App() {
                 { event: 'INSERT', schema: 'public', table: 'workspaces' },
                 (payload) => {
                     const d = payload.new;
-                    if (d.status === 'active') {
-                        setImages(prev => {
-                            if (prev.find(img => img.id === d.id)) return prev;
-                            const newImg = { id: d.id, src: d.src, w: d.width || 440, h: d.height || 440 };
-                            return [newImg, ...prev];
-                        });
-                    }
+                    setImages(prev => {
+                        if (prev.find(img => img.id === d.id)) return prev;
+                        const newImg = { id: d.id, src: d.src, w: d.width || 440, h: d.height || 440, createdBy: d.created_by };
+                        return [newImg, ...prev];
+                    });
                 }
             )
             .on(
                 'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'workspaces' },
+                { event: 'DELETE', schema: 'public', table: 'workspaces' },
                 (payload) => {
-                    const d = payload.new;
-                    if (d.status === 'deleted') {
-                        setImages(prev => prev.filter(img => img.id !== d.id));
-                    }
+                    const d = payload.old;
+                    setImages(prev => prev.filter(img => img.id !== d.id));
                 }
             )
             .subscribe();
@@ -381,14 +377,26 @@ export default function App() {
         }
 
         // Hard delete in DB
-        const { error } = await supabase
+        const { error, data } = await supabase
             .from('workspaces')
             .delete()
-            .eq('id', id);
+            .eq('id', id)
+            .select();
 
         if (error) {
             console.error("Failed to delete workspace:", error);
             showToast("Failed to remove image");
+        } else if (data && data.length === 0) {
+            // RLS blocked it (deleted 0 rows)
+            showToast("You don't have permission to remove this image.");
+            // Revert optimistic delete
+            const fetchOriginal = async () => {
+                const { data: orig } = await supabase.from('workspaces').select('*').eq('id', id).single();
+                if (orig) {
+                    setImages(prev => [{ id: orig.id, src: orig.src, w: orig.width || 440, h: orig.height || 440, createdBy: orig.created_by }, ...prev]);
+                }
+            };
+            fetchOriginal();
         } else {
             showToast("Successfully removed");
         }
@@ -453,6 +461,7 @@ export default function App() {
                             src: data.src,
                             w: data.width,
                             h: data.height,
+                            createdBy: data.created_by,
                         };
 
                         if (viewTarget === "detail" && selectedImage && logicalX !== undefined) {

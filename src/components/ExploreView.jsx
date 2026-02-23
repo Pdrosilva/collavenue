@@ -291,18 +291,20 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
                                                             >
                                                                 Share
                                                             </button>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setImageToDelete(img.id);
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                                style={{ width: "100%", background: "none", border: "none", textAlign: "left", padding: "8px 12px", borderRadius: 8, fontSize: 14, fontFamily: T.font, fontWeight: 400, color: T.textSec, cursor: "pointer", transition: "background 150ms ease" }}
-                                                                onMouseEnter={(e) => e.currentTarget.style.background = T.surfaceHover}
-                                                                onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                                                            >
-                                                                Remove
-                                                            </button>
+                                                            {user && user.id === img.createdBy && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setImageToDelete(img.id);
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                    style={{ width: "100%", background: "none", border: "none", textAlign: "left", padding: "8px 12px", borderRadius: 8, fontSize: 14, fontFamily: T.font, fontWeight: 400, color: "#ef4444", cursor: "pointer", transition: "background 150ms ease" }}
+                                                                    onMouseEnter={(e) => e.currentTarget.style.background = T.surfaceHover}
+                                                                    onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                                                                >
+                                                                    Remove
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </>
                                                 )}
