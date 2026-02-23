@@ -135,7 +135,7 @@ export const CommentItem = ({ c, i: idx, toggleStar, editComment, deleteComment,
                     style={{
                         marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 16px",
                         borderRadius: T.rFull, background: T.surfaceHover, border: "none", cursor: "pointer", fontSize: 14,
-                        color: c.starred ? "#F59E0B" : T.text, fontWeight: c.starred ? 500 : 400, opacity: c.starred ? 1 : 0.8, fontFamily: T.font, transition: "all 180ms ease",
+                        color: T.text, fontWeight: c.starred ? 500 : 400, opacity: c.starred ? 1 : 0.8, fontFamily: T.font, transition: "all 180ms ease",
                     }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = T.surfaceBorder; e.currentTarget.style.opacity = 1; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.opacity = c.starred ? 1 : 0.8; }}
@@ -143,19 +143,31 @@ export const CommentItem = ({ c, i: idx, toggleStar, editComment, deleteComment,
                     <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Star
                             size={16}
-                            fill={c.starred ? "#F59E0B" : "none"}
-                            color={c.starred ? "#F59E0B" : "currentColor"}
+                            fill={c.starred ? T.text : "none"}
+                            color={T.text}
                             style={{
                                 transition: "all 180ms ease",
                                 animation: isLiking ? "starBurst 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275)" : "none"
                             }}
                         />
                         {isLiking && (
-                            <div style={{
-                                position: "absolute", inset: -8, borderRadius: "50%",
-                                border: "2px solid #F59E0B", opacity: 0,
-                                animation: "ringExpand 400ms ease-out forwards", pointerEvents: "none"
-                            }} />
+                            <div style={{ position: "absolute", top: "50%", left: "50%", pointerEvents: "none" }}>
+                                {[...Array(6)].map((_, i) => {
+                                    const angle = (i * 60) * (Math.PI / 180);
+                                    const dist = 22;
+                                    const tx = `${Math.cos(angle) * dist}px`;
+                                    const ty = `${Math.sin(angle) * dist}px`;
+                                    return (
+                                        <div key={i} style={{
+                                            position: "absolute",
+                                            width: 4, height: 4, marginTop: -2, marginLeft: -2,
+                                            borderRadius: "50%", background: T.text,
+                                            "--tx": tx, "--ty": ty,
+                                            animation: `particleFly 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards`
+                                        }} />
+                                    );
+                                })}
+                            </div>
                         )}
                     </div>
                     {c.stars > 0 && c.stars}
