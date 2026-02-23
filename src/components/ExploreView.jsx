@@ -276,8 +276,8 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
 
                                                 {openMenuId === img.id && (
                                                     <>
-                                                        <div style={{ position: "fixed", inset: 0, zIndex: 30 }} onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
-                                                        <div style={{ position: "absolute", top: 44, left: 0, background: T.surface, borderRadius: 12, padding: 6, width: 160, zIndex: 40, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, display: "flex", flexDirection: "column", gap: 2, animation: "fadeIn 150ms ease" }}>
+                                                        <div style={{ position: "fixed", inset: 0, zIndex: 190 }} onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
+                                                        <div style={{ position: "absolute", top: 44, left: 0, background: T.surface, borderRadius: 12, padding: 6, width: 160, zIndex: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, display: "flex", flexDirection: "column", gap: 2, animation: "fadeIn 150ms ease" }}>
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
