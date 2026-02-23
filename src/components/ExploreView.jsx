@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useWindowWidth } from "../lib/useWindowWidth";
-import { Bookmark, Layers, Moon, Sun, MoreHorizontal } from "lucide-react";
+import { Bookmark, Layers, Moon, Sun, MoreHorizontal, ImagePlus } from "lucide-react";
 import { T } from "../lib/theme";
 import { NavBar } from "../components/NavBar";
 
@@ -55,7 +55,7 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
             {/* Settings Card Overlay */}
             {isSettingsOpen && (
                 <div
-                    style={{ position: "fixed", inset: 0, zIndex: 80 }}
+                    style={{ position: "fixed", inset: 0, zIndex: 290 }}
                     onClick={() => setIsSettingsOpen(false)}
                 />
             )}
@@ -63,7 +63,7 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
             {/* Settings Popover Card */}
             <div style={{
                 position: "fixed", top: ww < 640 ? 76 : 80, right: ww < 640 ? 15 : 32,
-                background: T.surface, zIndex: 90,
+                background: T.surface, zIndex: 300,
                 transform: isSettingsOpen ? "translateY(0) scale(1)" : "translateY(-10px) scale(0.95)",
                 opacity: isSettingsOpen ? 1 : 0,
                 pointerEvents: isSettingsOpen ? "auto" : "none",
@@ -103,29 +103,31 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <span style={{ fontWeight: 400, fontFamily: T.font, fontSize: 18, color: "var(--text)" }}>Tema</span>
+                        <span style={{ fontWeight: 400, fontFamily: T.font, fontSize: 18, color: "var(--text)" }}>Theme</span>
                         <div style={{ display: "flex", gap: 16 }}>
                             <button
                                 onClick={() => setThemeMode("light")}
                                 style={{
-                                    background: "none", border: "none",
+                                    background: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center",
                                     color: themeMode === "light" ? "var(--text)" : "var(--textTer)",
-                                    fontSize: 18, fontFamily: T.font, fontWeight: 400,
-                                    cursor: "pointer", transition: "color 0.2s"
+                                    cursor: "pointer", transition: "color 0.2s, transform 0.2s"
                                 }}
+                                onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+                                onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
                             >
-                                Claro
+                                <Sun size={20} />
                             </button>
                             <button
                                 onClick={() => setThemeMode("dark")}
                                 style={{
-                                    background: "none", border: "none",
+                                    background: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center",
                                     color: themeMode === "dark" ? "var(--text)" : "var(--textTer)",
-                                    fontSize: 18, fontFamily: T.font, fontWeight: 400,
-                                    cursor: "pointer", transition: "color 0.2s"
+                                    cursor: "pointer", transition: "color 0.2s, transform 0.2s"
                                 }}
+                                onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+                                onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
                             >
-                                Escuro
+                                <Moon size={20} />
                             </button>
                         </div>
                     </div>
@@ -183,7 +185,11 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
                     </div>
                 ) : displayImages.length === 0 ? (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "15vh 32px", color: "var(--textTer)", fontFamily: T.font, textAlign: "center", animation: "fadeIn 300ms ease" }}>
-                        <Bookmark size={48} strokeWidth={1.5} style={{ marginBottom: 24, opacity: 0.3 }} />
+                        {currentTab === "Saved" ? (
+                            <Bookmark size={48} strokeWidth={1.5} style={{ marginBottom: 24, opacity: 0.3 }} />
+                        ) : (
+                            <ImagePlus size={48} strokeWidth={1.5} style={{ marginBottom: 24, opacity: 0.3 }} />
+                        )}
                         <span style={{ fontSize: 22, fontWeight: 400, color: "var(--text)", letterSpacing: "-0.02em" }}>Nothing here yet</span>
                         <span style={{ fontSize: 16, marginTop: 12, lineHeight: 1.5, maxWidth: 320 }}>{currentTab === "Saved" ? "Save some references to see them here." : "Try adding a link or dropping an image."}</span>
                     </div>
