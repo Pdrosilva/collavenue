@@ -1,7 +1,7 @@
 -- 1. Create comment_likes table
 create table public.comment_likes (
   user_id uuid references auth.users(id) on delete cascade not null,
-  comment_id bigint references public.comments(id) on delete cascade not null,
+  comment_id uuid references public.comments(id) on delete cascade not null,
   primary key (user_id, comment_id)
 );
 
