@@ -9,8 +9,18 @@ export const CommentItem = ({ c, i: idx, toggleStar, editComment, deleteComment,
     const [isHighlighted, setIsHighlighted] = useState(false);
     const itemRef = useRef(null);
 
+    const [isLiking, setIsLiking] = useState(false);
+
     // Only actual owner can see menu
     const isOwn = currentUser ? (c.authorId === currentUser.id || c.author === currentUser.name) : c.author === "You";
+
+    const handleStarClick = () => {
+        if (!c.starred) {
+            setIsLiking(true);
+            setTimeout(() => setIsLiking(false), 400); // match animation duration
+        }
+        toggleStar(c.id);
+    };
 
     useEffect(() => {
         if (highlightedCommentId === c.id) {
@@ -121,17 +131,34 @@ export const CommentItem = ({ c, i: idx, toggleStar, editComment, deleteComment,
 
             {!isEditing && (
                 <button
-                    onClick={() => toggleStar(c.id)}
+                    onClick={handleStarClick}
                     style={{
                         marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 16px",
                         borderRadius: T.rFull, background: T.surfaceHover, border: "none", cursor: "pointer", fontSize: 14,
-                        color: T.text, fontWeight: 400, opacity: 0.8, fontFamily: T.font, transition: "all 180ms ease",
+                        color: c.starred ? "#F59E0B" : T.text, fontWeight: c.starred ? 500 : 400, opacity: c.starred ? 1 : 0.8, fontFamily: T.font, transition: "all 180ms ease",
                     }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = T.surfaceBorder; e.currentTarget.style.opacity = 1; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.opacity = 0.8; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.opacity = c.starred ? 1 : 0.8; }}
                 >
-                    <Star size={16} fill={c.starred ? T.text : "none"} color={c.starred ? T.text : "currentColor"} style={{ transition: "all 180ms ease" }} />
-                    {c.stars}
+                    <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Star
+                            size={16}
+                            fill={c.starred ? "#F59E0B" : "none"}
+                            color={c.starred ? "#F59E0B" : "currentColor"}
+                            style={{
+                                transition: "all 180ms ease",
+                                animation: isLiking ? "starBurst 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275)" : "none"
+                            }}
+                        />
+                        {isLiking && (
+                            <div style={{
+                                position: "absolute", inset: -8, borderRadius: "50%",
+                                border: "2px solid #F59E0B", opacity: 0,
+                                animation: "ringExpand 400ms ease-out forwards", pointerEvents: "none"
+                            }} />
+                        )}
+                    </div>
+                    {c.stars > 0 && c.stars}
                 </button>
             )}
         </div>

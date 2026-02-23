@@ -648,6 +648,16 @@ export default function App() {
                 @keyframes spin {
                     to { transform: rotate(360deg); }
                 }
+                @keyframes starBurst {
+                    0% { transform: scale(1); }
+                    30% { transform: scale(1.35); }
+                    60% { transform: scale(0.9); }
+                    100% { transform: scale(1); }
+                }
+                @keyframes ringExpand {
+                    0% { transform: scale(0.6); opacity: 1; border-width: 3px; }
+                    100% { transform: scale(2.2); opacity: 0; border-width: 0px; }
+                }
             `}</style>
 
             {/* Uploading Pill */}
