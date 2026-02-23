@@ -380,10 +380,10 @@ export default function App() {
             closeDetail();
         }
 
-        // Soft delete in DB
+        // Hard delete in DB
         const { error } = await supabase
             .from('workspaces')
-            .update({ status: 'deleted' })
+            .delete()
             .eq('id', id);
 
         if (error) {
@@ -582,6 +582,7 @@ export default function App() {
                     savedImages={savedImages}
                     toggleSave={toggleSave}
                     hideImage={hideImage}
+                    deleteImage={deleteImage}
                     showToast={showToast}
                     hovered={hovered}
                     setHovered={setHovered}

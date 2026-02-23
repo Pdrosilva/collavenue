@@ -4,12 +4,13 @@ import { Bookmark, Layers, Moon, Sun, MoreHorizontal } from "lucide-react";
 import { T } from "../lib/theme";
 import { NavBar } from "../components/NavBar";
 
-export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, setCurrentTab, savedImages, toggleSave, hovered, setHovered, loaded, gridPadding, setGridPadding, themeMode, setThemeMode, hideImage, showToast, user, signInWithGoogle, signOut }) => {
+export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, setCurrentTab, savedImages, toggleSave, hovered, setHovered, loaded, gridPadding, setGridPadding, themeMode, setThemeMode, hideImage, showToast, user, signInWithGoogle, signOut, deleteImage }) => {
     const ww = useWindowWidth();
     const cols = ww < 640 ? 2 : ww < 1024 ? 3 : 4;
     const [tabLoaded, setTabLoaded] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [openMenuId, setOpenMenuId] = useState(null);
+    const [imageToDelete, setImageToDelete] = useState(null);
 
     useEffect(() => {
         setTabLoaded(false);
@@ -272,14 +273,14 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    hideImage(img.id);
+                                                                    setImageToDelete(img.id);
                                                                     setOpenMenuId(null);
                                                                 }}
                                                                 style={{ width: "100%", background: "none", border: "none", textAlign: "left", padding: "8px 12px", borderRadius: 8, fontSize: 14, fontFamily: T.font, fontWeight: 400, color: T.textSec, cursor: "pointer", transition: "background 150ms ease" }}
                                                                 onMouseEnter={(e) => e.currentTarget.style.background = T.surfaceHover}
                                                                 onMouseLeave={(e) => e.currentTarget.style.background = "none"}
                                                             >
-                                                                Hide from explore
+                                                                Remove
                                                             </button>
                                                         </div>
                                                     </>
@@ -293,6 +294,34 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
                     </div>
                 )}
             </div>
+
+            {/* Remove Confirmation Modal */}
+            {imageToDelete && (
+                <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center" }}>
+                    <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} onClick={() => setImageToDelete(null)} />
+                    <div style={{ background: T.surface, padding: 24, borderRadius: 16, width: "100%", maxWidth: 320, position: "relative", zIndex: 1001, border: `1px solid ${T.surfaceBorder}`, boxShadow: "0 12px 48px rgba(0,0,0,0.12)", color: T.text, fontFamily: T.font }}>
+                        <h3 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 600, letterSpacing: "-0.36px" }}>Remove Image?</h3>
+                        <p style={{ margin: "0 0 24px", fontSize: 14, opacity: 0.7, lineHeight: 1.4 }}>Are you sure you want to permanently remove this image from the database? This action cannot be undone.</p>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                            <button
+                                onClick={() => setImageToDelete(null)}
+                                style={{ padding: "8px 16px", borderRadius: T.rFull, border: "none", background: T.ghost, cursor: "pointer", fontSize: 13, fontFamily: T.font, fontWeight: 400, color: T.text }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    deleteImage(imageToDelete);
+                                    setImageToDelete(null);
+                                }}
+                                style={{ padding: "8px 16px", borderRadius: T.rFull, border: "none", background: "#ef4444", color: "#fff", cursor: "pointer", fontSize: 13, fontFamily: T.font, fontWeight: 500 }}
+                            >
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 };
