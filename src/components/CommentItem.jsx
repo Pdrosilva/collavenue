@@ -152,15 +152,15 @@ export const CommentItem = ({ c, i: idx, toggleStar, editComment, deleteComment,
                         />
                         {isLiking && (
                             <div style={{ position: "absolute", top: "50%", left: "50%", pointerEvents: "none" }}>
-                                {[...Array(6)].map((_, i) => {
-                                    const angle = (i * 60) * (Math.PI / 180);
-                                    const dist = 22;
+                                {[...Array(12)].map((_, i) => {
+                                    const angle = (i * 30) * (Math.PI / 180);
+                                    const dist = 24;
                                     const tx = `${Math.cos(angle) * dist}px`;
                                     const ty = `${Math.sin(angle) * dist}px`;
                                     return (
                                         <div key={i} style={{
                                             position: "absolute",
-                                            width: 4, height: 4, marginTop: -2, marginLeft: -2,
+                                            width: 3, height: 3, marginTop: -1.5, marginLeft: -1.5,
                                             borderRadius: "50%", background: T.text,
                                             "--tx": tx, "--ty": ty,
                                             animation: `particleFly 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards`
@@ -170,7 +170,7 @@ export const CommentItem = ({ c, i: idx, toggleStar, editComment, deleteComment,
                             </div>
                         )}
                     </div>
-                    {c.stars > 0 && c.stars}
+                    {c.stars !== undefined ? c.stars : 0}
                 </button>
             )}
         </div>
