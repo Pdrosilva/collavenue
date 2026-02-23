@@ -56,6 +56,9 @@ export default function App() {
                     w: d.width || 440,
                     h: d.height || 440,
                     createdBy: d.created_by,
+                    workspaceId: d.workspace_id,
+                    x: d.x_coord,
+                    y: d.y_coord
                 }));
                 setImages(mapped);
             }
@@ -72,7 +75,10 @@ export default function App() {
                     const d = payload.new;
                     setImages(prev => {
                         if (prev.find(img => img.id === d.id)) return prev;
-                        const newImg = { id: d.id, src: d.src, w: d.width || 440, h: d.height || 440, createdBy: d.created_by };
+                        const newImg = {
+                            id: d.id, src: d.src, w: d.width || 440, h: d.height || 440, createdBy: d.created_by,
+                            workspaceId: d.workspace_id, x: d.x_coord, y: d.y_coord
+                        };
                         return [newImg, ...prev];
                     });
                 }
@@ -485,6 +491,10 @@ export default function App() {
                         const centerY = r.height / 2;
                         logicalX = (dropX - centerX - pan.x) / scale;
                         logicalY = (dropY - centerY - pan.y) / scale;
+
+                        insertData.workspace_id = selectedImage.workspaceId || selectedImage.id;
+                        insertData.x_coord = logicalX - drawW / 2;
+                        insertData.y_coord = logicalY - drawH / 2;
                     }
 
                     // Insert into Supabase
@@ -501,15 +511,10 @@ export default function App() {
                             w: data.width,
                             h: data.height,
                             createdBy: data.created_by,
+                            workspaceId: data.workspace_id,
+                            x: data.x_coord,
+                            y: data.y_coord
                         };
-
-                        if (viewTarget === "detail" && selectedImage && logicalX !== undefined) {
-                            newImg.workspaceId = selectedImage.workspaceId || selectedImage.id;
-                            newImg.x = logicalX - drawW / 2;
-                            newImg.y = logicalY - drawH / 2;
-                            newImg.width = drawW;
-                            newImg.height = drawH;
-                        }
 
                         // if dropped in detail view, we also need to update its local position in our state
                         setImages(prev => {
