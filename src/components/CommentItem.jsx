@@ -152,19 +152,38 @@ export const CommentItem = ({ c, i: idx, toggleStar, editComment, deleteComment,
                         />
                         {isLiking && (
                             <div style={{ position: "absolute", top: "50%", left: "50%", pointerEvents: "none" }}>
-                                {[...Array(12)].map((_, i) => {
-                                    const angle = (i * 30) * (Math.PI / 180);
-                                    const dist = 24;
-                                    const tx = `${Math.cos(angle) * dist}px`;
-                                    const ty = `${Math.sin(angle) * dist}px`;
+                                {[...Array(6)].map((_, i) => {
+                                    const baseAngle = (i * 60) * (Math.PI / 180);
+
+                                    // Main Particle (larger, shoots further)
+                                    const p1Dist = 26;
+                                    const tx1 = `${Math.cos(baseAngle) * p1Dist}px`;
+                                    const ty1 = `${Math.sin(baseAngle) * p1Dist}px`;
+
+                                    // Secondary Particle (smaller, shorter distance, angled slightly)
+                                    const altAngle = baseAngle + (25 * (Math.PI / 180));
+                                    const p2Dist = 18;
+                                    const tx2 = `${Math.cos(altAngle) * p2Dist}px`;
+                                    const ty2 = `${Math.sin(altAngle) * p2Dist}px`;
+
                                     return (
-                                        <div key={i} style={{
-                                            position: "absolute",
-                                            width: 3, height: 3, marginTop: -1.5, marginLeft: -1.5,
-                                            borderRadius: "50%", background: T.text,
-                                            "--tx": tx, "--ty": ty,
-                                            animation: `particleFly 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards`
-                                        }} />
+                                        <div key={i} style={{ position: "absolute" }}>
+                                            <div style={{
+                                                position: "absolute",
+                                                width: 4, height: 4, marginTop: -2, marginLeft: -2,
+                                                borderRadius: "50%", background: T.text,
+                                                "--tx": tx1, "--ty": ty1,
+                                                animation: `particleFly 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards`,
+                                            }} />
+                                            <div style={{
+                                                position: "absolute",
+                                                width: 2.5, height: 2.5, marginTop: -1.25, marginLeft: -1.25,
+                                                borderRadius: "50%", background: T.text, opacity: 0.6,
+                                                "--tx": tx2, "--ty": ty2,
+                                                animation: `particleFly 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards`,
+                                                animationDelay: "40ms"
+                                            }} />
+                                        </div>
                                     );
                                 })}
                             </div>
