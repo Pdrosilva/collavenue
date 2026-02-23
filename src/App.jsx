@@ -385,37 +385,40 @@ export default function App() {
                         logicalX = (dropX - centerX - pan.x) / scale;
                         logicalY = (dropY - centerY - pan.y) / scale;
 
-                        // Because the UI treats sub-images as workspaces with x,y, 
-                        // we must wait for Supabase to support x,y in the table if it's truly nested. 
-                        // But for now, we just insert as a workspace and store x, y in local state 
-                        // (our schema didn't include x,y on workspaces, so we'll mock it locally for now)
-                    }
+                        // Insert into Supabase
+                        const { data, error } = await supabase
+                            .from('workspaces')
+                            .insert([insertData])
+                            .select()
+                            .single();
 
-                    // Insert into Supabase
-                    const { data, error } = await supabase
-                        .from('workspaces')
-                        .insert([insertData])
-                        .select()
-                        .single();
+                        if (!error && data) {
+                            const newImg = {
+                                id: data.id,
+                                src: data.src,
+                                w: data.width,
+                                h: data.height,
+                            };
 
-                    if (!error && data) {
-                        const newImg = {
-                            id: data.id,
-                            src: data.src,
-                            w: data.width,
-                            h: data.height,
-                        };
+                            if (viewTarget === "detail" && selectedImage && logicalX !== undefined) {
+                                newImg.workspaceId = selectedImage.workspaceId || selectedImage.id;
+                                newImg.x = logicalX - drawW / 2;
+                                newImg.y = logicalY - drawH / 2;
+                                newImg.width = drawW;
+                                newImg.height = drawH;
+                            }
 
-                        if (viewTarget === "detail" && selectedImage && logicalX !== undefined) {
-                            newImg.workspaceId = selectedImage.workspaceId || selectedImage.id;
-                            newImg.x = logicalX - drawW / 2;
-                            newImg.y = logicalY - drawH / 2;
-                            newImg.width = drawW;
-                            newImg.height = drawH;
+                            // if dropped in detail view, we also need to update its local position in our state
+                            setImages(prev => {
+                                if (viewTarget === "detail" && selectedImage) {
+                                    // Important: We are appending it with its local coordinates
+                                    // so it renders properly in the DetailView context.
+                                    return [...prev, newImg]; // append to end so it renders on top
+                                }
+                                return [newImg, ...prev]; // explore view: newest first
+                            });
                         }
-
-                        setImages(prev => [newImg, ...prev]);
-                    }
+                    };
                 };
                 img.src = src;
             };
