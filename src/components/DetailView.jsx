@@ -345,27 +345,43 @@ export const DetailView = ({
                 />
             </div>
 
-            {commentsOpen && (
-                <>
-                    {ww < 768 && <div onClick={() => setCommentsOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", backdropFilter: "blur(4px)", zIndex: 190, animation: "fadeIn 300ms ease" }} />}
-                    <div style={{ position: "fixed", right: ww >= 768 ? 32 : 0, top: ww >= 768 ? 32 : 0, bottom: ww >= 768 ? 32 : 0, width: ww < 768 ? "100vw" : panelW, maxWidth: "100vw", background: T.surface, borderRadius: ww >= 768 ? 24 : 0, boxShadow: ww >= 768 ? "0 24px 80px rgba(0,0,0,0.12)" : "none", zIndex: 200, display: "flex", flexDirection: "column", overflow: "hidden", animation: "slideInRight 500ms cubic-bezier(0,0,.2,1)" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 31px", flexShrink: 0 }}>
-                            <span style={{ fontSize: 20, fontWeight: 400, letterSpacing: "-0.2px", fontFamily: T.font }}>Thoughts</span>
-                            <button
-                                onClick={() => setCommentsOpen(false)}
-                                style={{ width: 40, height: 40, borderRadius: T.rFull, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 180ms ease" }}
-                                onMouseEnter={(e) => (e.currentTarget.style.background = T.ghost)}
-                                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-                            >
-                                <X size={20} color={T.text} />
-                            </button>
-                        </div>
-                        <div style={{ flex: 1, overflowY: "auto", padding: "0 23px 31px 31px", marginRight: 8 }}>
-                            {activeComments.map((c, i) => <CommentItem key={c.id} c={c} i={i} toggleStar={toggleStar} editComment={editComment} deleteComment={deleteComment} commentsLength={activeComments.length} highlightedCommentId={highlightedCommentId} currentUser={currentUser} />)}
-                        </div>
-                    </div>
-                </>
-            )}
+            {/* Comments Drawer Backdrop */}
+            <div
+                onClick={() => setCommentsOpen(false)}
+                style={{
+                    position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)",
+                    backdropFilter: "blur(4px)", zIndex: 190,
+                    opacity: commentsOpen && ww < 768 ? 1 : 0,
+                    pointerEvents: commentsOpen && ww < 768 ? "auto" : "none",
+                    transition: "opacity 400ms cubic-bezier(0.16, 1, 0.3, 1)"
+                }}
+            />
+
+            {/* Comments Drawer */}
+            <div style={{
+                position: "fixed", right: ww >= 768 ? 32 : 0, top: ww >= 768 ? 32 : 0, bottom: ww >= 768 ? 32 : 0, width: ww < 768 ? "100vw" : panelW, maxWidth: "100vw",
+                background: T.surface, borderRadius: ww >= 768 ? 24 : 0, boxShadow: ww >= 768 ? "0 24px 80px rgba(0,0,0,0.12)" : "none", zIndex: 200,
+                display: "flex", flexDirection: "column", overflow: "hidden",
+                transform: commentsOpen ? "translateX(0)" : "translateX(100%)",
+                opacity: commentsOpen ? 1 : 0,
+                pointerEvents: commentsOpen ? "auto" : "none",
+                transition: "transform 500ms cubic-bezier(0.16, 1, 0.3, 1), opacity 500ms ease"
+            }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 31px", flexShrink: 0 }}>
+                    <span style={{ fontSize: 20, fontWeight: 400, letterSpacing: "-0.2px", fontFamily: T.font }}>Thoughts</span>
+                    <button
+                        onClick={() => setCommentsOpen(false)}
+                        style={{ width: 40, height: 40, borderRadius: T.rFull, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 180ms ease" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = T.ghost)}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                    >
+                        <X size={20} color={T.text} />
+                    </button>
+                </div>
+                <div style={{ flex: 1, overflowY: "auto", padding: "0 23px 31px 31px", marginRight: 8 }}>
+                    {activeComments.map((c, i) => <CommentItem key={c.id} c={c} i={i} toggleStar={toggleStar} editComment={editComment} deleteComment={deleteComment} commentsLength={activeComments.length} highlightedCommentId={highlightedCommentId} currentUser={currentUser} />)}
+                </div>
+            </div>
         </div>
     );
 };

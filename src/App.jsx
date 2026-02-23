@@ -14,7 +14,6 @@ export default function App() {
     const [currentTab, setCurrentTab] = useState("Explore");
     const [savedImages, setSavedImages] = useState([]);
     const [hiddenImages, setHiddenImages] = useState([]);
-    const [toastMsg, setToastMsg] = useState(null);
     const [selectedImage, setSelectedImage] = useState(null);
     const [commentsOpen, setCommentsOpen] = useState(false);
     const [comments, setComments] = useState([]);
@@ -433,10 +432,17 @@ export default function App() {
         }, 4000);
     };
 
+    const [toastState, setToastState] = useState({ content: null, visible: false });
+
     const showToast = (text, duration = 3000, action = null) => {
-        setToastMsg({ text, action });
+        setToastState({ content: { text, action }, visible: true });
+
         if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-        toastTimeoutRef.current = setTimeout(() => setToastMsg(null), duration);
+
+        toastTimeoutRef.current = setTimeout(() => {
+            setToastState(prev => ({ ...prev, visible: false }));
+            // the content stays for a bit so it doesn't vanish while fading out
+        }, duration);
     };
 
     const handleFilesDrop = async (e, viewTarget, dropX, dropY) => {
@@ -607,40 +613,49 @@ export default function App() {
             }}
         >
             {/* Toast Notification */}
-            {toastMsg && (
-                <div style={{ position: "fixed", bottom: 40, left: "50%", background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 400, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999, animation: "toastSlideUp 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards", display: "flex", alignItems: "center", gap: 16 }}>
-                    <span>{toastMsg.text}</span>
-                    {toastMsg.action && (
-                        <button
-                            onClick={toastMsg.action.onClick}
-                            style={{ background: "none", border: "none", color: "#3B82F6", fontWeight: 500, cursor: "pointer", padding: 0, fontSize: 14, marginLeft: "auto" }}
-                        >
-                            {toastMsg.action.label}
-                        </button>
-                    )}
-                </div>
-            )}
+            <div style={{
+                position: "fixed", bottom: 40, left: "50%", background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 400, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999,
+                display: "flex", alignItems: "center", gap: 16,
+                transform: toastState.visible ? "translate(-50%, 0)" : "translate(-50%, 20px)",
+                opacity: toastState.visible ? 1 : 0,
+                pointerEvents: toastState.visible ? "auto" : "none",
+                transition: "transform 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease"
+            }}>
+                {toastState.content && (
+                    <>
+                        <span>{toastState.content.text}</span>
+                        {toastState.content.action && (
+                            <button
+                                onClick={() => {
+                                    setToastState(prev => ({ ...prev, visible: false }));
+                                    toastState.content.action.onClick();
+                                }}
+                                style={{ background: "none", border: "none", color: "#3B82F6", fontWeight: 500, cursor: "pointer", padding: 0, fontSize: 14, marginLeft: "auto" }}
+                            >
+                                {toastState.content.action.label}
+                            </button>
+                        )}
+                    </>
+                )}
+            </div>
+
             <style>{`
-                @keyframes toastSlideUp {
-                    from { opacity: 0; transform: translate(-50%, 20px); }
-                    to { opacity: 1; transform: translate(-50%, 0); }
-                }
-                @keyframes uploadSlideUp {
-                    from { opacity: 0; transform: translate(-50%, 20px); }
-                    to { opacity: 1; transform: translate(-50%, 0); }
-                }
                 @keyframes spin {
                     to { transform: rotate(360deg); }
                 }
             `}</style>
 
             {/* Uploading Pill */}
-            {uploadingCount > 0 && (
-                <div style={{ position: "fixed", bottom: toastMsg ? 96 : 40, left: "50%", transform: "translateX(-50%)", background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 500, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999, display: "flex", alignItems: "center", gap: 12, animation: "uploadSlideUp 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards", transition: "bottom 300ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
-                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${T.textTer}`, borderTopColor: T.text, animation: "spin 1s linear infinite" }} />
-                    Uploading...
-                </div>
-            )}
+            <div style={{
+                position: "fixed", bottom: toastState.visible ? 96 : 40, left: "50%", background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 500, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999, display: "flex", alignItems: "center", gap: 12,
+                transform: `translateX(-50%) ${uploadingCount > 0 ? 'translateY(0)' : 'translateY(20px)'}`,
+                opacity: uploadingCount > 0 ? 1 : 0,
+                pointerEvents: uploadingCount > 0 ? "auto" : "none",
+                transition: "transform 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease, bottom 300ms cubic-bezier(0.16, 1, 0.3, 1)"
+            }}>
+                <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${T.textTer}`, borderTopColor: T.text, animation: "spin 1s linear infinite" }} />
+                Uploading...
+            </div>
 
             {view === "explore" && (
                 <ExploreView
