@@ -345,9 +345,15 @@ export const DetailView = ({
         return () => clearInterval(interval);
     }, []);
 
-    // Listen to cursor broadcasts locally
+    // Derive active workspace ID for scoped channels
+    const activeWspId = selectedImage?.workspaceId || selectedImage?.id;
+
+    // Listen to cursor broadcasts scoped to this workspace
     useEffect(() => {
-        const channel = supabase.channel('public:workspaces_cursors')
+        if (!activeWspId) return;
+
+        const channelName = `workspace:${activeWspId}:cursors`;
+        const channel = supabase.channel(channelName)
             .on('broadcast', { event: 'cursor_move' }, (payload) => {
                 const { userId, x, y, user: payloadUser } = payload.payload;
                 if (currentUser && userId === currentUser.id) return;
@@ -359,11 +365,12 @@ export const DetailView = ({
             .subscribe();
 
         return () => supabase.removeChannel(channel);
-    }, [currentUser?.id]);
+    }, [currentUser?.id, activeWspId]);
 
     const broadcastCursorMove = (x, y) => {
-        if (!currentUser) return;
-        supabase.channel('public:workspaces_cursors').send({
+        if (!currentUser || !activeWspId) return;
+        const channelName = `workspace:${activeWspId}:cursors`;
+        supabase.channel(channelName).send({
             type: 'broadcast',
             event: 'cursor_move',
             payload: { userId: currentUser.id, x, y, user: { name: currentUser.name, avatar: currentUser.avatar } }
@@ -450,7 +457,6 @@ export const DetailView = ({
 
 
 
-    const activeWspId = selectedImage.workspaceId || selectedImage.id;
     const cw = images.filter(img => (img.workspaceId || img.id) === activeWspId);
     const activeComments = comments.filter((c) => c.workspaceId === activeWspId);
     const rootComments = activeComments.filter(c => !c.parentId);

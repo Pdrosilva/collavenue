@@ -83,16 +83,6 @@ export default function App() {
             )
             .on(
                 'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'workspaces' },
-                (payload) => {
-                    const d = payload.new;
-                    setImages(prev => prev.map(img =>
-                        img.id === d.id ? { ...img, x: d.x_coord, y: d.y_coord, w: d.width, h: d.height } : img
-                    ));
-                }
-            )
-            .on(
-                'postgres_changes',
                 { event: 'DELETE', schema: 'public', table: 'workspaces' },
                 (payload) => {
                     const d = payload.old;
