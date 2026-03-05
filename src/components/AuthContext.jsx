@@ -12,13 +12,16 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         // Obter sessão atual
-        supabase.auth.getSession()
-            .then(({ data: { session }, error }) => {
-                if (error) console.error("Supabase getSession error:", error);
-                setSession(session);
-            })
-            .catch(err => console.error("Supabase getSession exception:", err))
-            .finally(() => setLoading(false));
+        supabase.auth.getSession().then(({ data: { session }, error }) => {
+            if (error) {
+                console.error("Supabase getSession error:", error);
+            }
+            setSession(session);
+            setLoading(false);
+        }).catch(err => {
+            console.error("Supabase getSession exception:", err);
+            setLoading(false);
+        });
 
         // Escutar mudanças de autenticação (Login, Logout, etc)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
