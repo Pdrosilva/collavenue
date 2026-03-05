@@ -310,9 +310,7 @@ export const DetailView = ({
     setHighlightedCommentId,
     currentUser,
     commentsLoading,
-    submitReply,
-    cursors,
-    broadcastCursorMove
+    submitReply
 }) => {
     const ww = useWindowWidth();
     if (!selectedImage) return null;
@@ -325,6 +323,52 @@ export const DetailView = ({
     const [dragOff, setDragOff] = useState({ x: 0, y: 0 });
     const [contextMenu, setContextMenu] = useState(null);
     const canvasRef = useRef(null);
+
+    const [cursors, setCursors] = useState({});
+
+    // Clear inactive cursors after a few seconds
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const now = Date.now();
+            setCursors(prev => {
+                const next = { ...prev };
+                let changed = false;
+                for (const [uid, data] of Object.entries(next)) {
+                    if (now - data.lastUpdate > 5000) {
+                        delete next[uid];
+                        changed = true;
+                    }
+                }
+                return changed ? next : prev;
+            });
+        }, 2000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Listen to cursor broadcasts locally
+    useEffect(() => {
+        const channel = supabase.channel('public:workspaces_cursors')
+            .on('broadcast', { event: 'cursor_move' }, (payload) => {
+                const { userId, x, y, user: payloadUser } = payload.payload;
+                if (currentUser && userId === currentUser.id) return;
+                setCursors(prev => ({
+                    ...prev,
+                    [userId]: { x, y, user: payloadUser, lastUpdate: Date.now() }
+                }));
+            })
+            .subscribe();
+
+        return () => supabase.removeChannel(channel);
+    }, [currentUser?.id]);
+
+    const broadcastCursorMove = (x, y) => {
+        if (!currentUser) return;
+        supabase.channel('public:workspaces_cursors').send({
+            type: 'broadcast',
+            event: 'cursor_move',
+            payload: { userId: currentUser.id, x, y, user: { name: currentUser.name, avatar: currentUser.avatar } }
+        });
+    };
 
     // Throttle cursor broadcasts to avoid spamming the websocket (e.g., 50ms)
     const lastBroadcastRef = useRef(0);

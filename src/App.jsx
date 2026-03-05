@@ -32,7 +32,6 @@ export default function App() {
     const [uploadingCount, setUploadingCount] = useState(0);
     const [pendingDeletions, setPendingDeletions] = useState(new Set());
     const [commentsLoading, setCommentsLoading] = useState(false);
-    const [cursors, setCursors] = useState({}); // { [userId]: { x, y, user, lastUpdate } }
     const deleteTimeouts = useRef({});
     const toastTimeoutRef = useRef(null);
 
@@ -105,20 +104,10 @@ export default function App() {
                 const { id, x, y } = payload.payload;
                 setImages(prev => prev.map(img => img.id === id ? { ...img, x, y } : img));
             })
-            .on('broadcast', { event: 'cursor_move' }, (payload) => {
-                const { userId, x, y, user: payloadUser } = payload.payload;
-                // Ignore our own cursor broadcast just in case
-                if (user && userId === user.id) return;
-
-                setCursors(prev => ({
-                    ...prev,
-                    [userId]: { x, y, user: payloadUser, lastUpdate: Date.now() }
-                }));
-            })
             .subscribe();
 
         return () => supabase.removeChannel(channel);
-    }, [user?.id]); // Re-bind if user changes to filter own cursor
+    }, []); // Re-bind if user changes to filter own cursor
 
     // Fetch saved images when user changes
     useEffect(() => {
@@ -182,25 +171,6 @@ export default function App() {
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', themeMode);
     }, [themeMode]);
-
-    // Clear inactive cursors after a few seconds
-    useEffect(() => {
-        const interval = setInterval(() => {
-            const now = Date.now();
-            setCursors(prev => {
-                const next = { ...prev };
-                let changed = false;
-                for (const [uid, data] of Object.entries(next)) {
-                    if (now - data.lastUpdate > 5000) {
-                        delete next[uid];
-                        changed = true;
-                    }
-                }
-                return changed ? next : prev;
-            });
-        }, 2000);
-        return () => clearInterval(interval);
-    }, []);
 
     useEffect(() => {
         const handlePaste = (e) => {
@@ -757,15 +727,6 @@ export default function App() {
         }
     };
 
-    const broadcastCursorMove = (x, y) => {
-        if (!user) return;
-        supabase.channel('public:workspaces').send({
-            type: 'broadcast',
-            event: 'cursor_move',
-            payload: { userId: user.id, x, y, user: { name: user.name, avatar: user.avatar } }
-        });
-    };
-
     if (authLoading) return <div style={{ minHeight: "100vh", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontFamily: T.font }}>Loading session...</div>;
 
     return (
@@ -893,8 +854,6 @@ export default function App() {
                     currentUser={user}
                     commentsLoading={commentsLoading}
                     submitReply={submitReply}
-                    cursors={cursors}
-                    broadcastCursorMove={broadcastCursorMove}
                 />
             )}
         </div>
