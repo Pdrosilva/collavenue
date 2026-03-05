@@ -11,25 +11,48 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Obter sessão atual
-        supabase.auth.getSession().then(({ data: { session }, error }) => {
-            if (error) {
-                console.error("Supabase getSession error:", error);
+        let resolved = false;
+
+        // Hard timeout: if getSession doesn't resolve in 3s, force loading off
+        const timeout = setTimeout(() => {
+            if (!resolved) {
+                console.warn("Auth getSession timed out after 3s, forcing loading off");
+                resolved = true;
+                setLoading(false);
             }
-            setSession(session);
-            setLoading(false);
-        }).catch(err => {
-            console.error("Supabase getSession exception:", err);
-            setLoading(false);
-        });
+        }, 3000);
+
+        // Obter sessão atual
+        (async () => {
+            try {
+                const { data, error } = await supabase.auth.getSession();
+                if (!resolved) {
+                    resolved = true;
+                    clearTimeout(timeout);
+                    if (error) console.error("Supabase getSession error:", error);
+                    setSession(data?.session ?? null);
+                    setLoading(false);
+                }
+            } catch (err) {
+                if (!resolved) {
+                    resolved = true;
+                    clearTimeout(timeout);
+                    console.error("Supabase getSession exception:", err);
+                    setLoading(false);
+                }
+            }
+        })();
 
         // Escutar mudanças de autenticação (Login, Logout, etc)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
-            setLoading(false);
+            if (loading) setLoading(false);
         });
 
-        return () => subscription.unsubscribe();
+        return () => {
+            clearTimeout(timeout);
+            subscription.unsubscribe();
+        };
     }, []);
 
     const signInWithGoogle = async () => {
