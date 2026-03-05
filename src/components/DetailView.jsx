@@ -230,6 +230,57 @@ const ThreadReplyInput = ({ onSubmit, currentUser }) => {
     );
 };
 
+const LiveCursors = ({ cursors }) => {
+    return (
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 60 }}>
+            {Object.entries(cursors).map(([userId, payload]) => {
+                const { x, y, user } = payload;
+                const initialColors = ['#FBBF24', '#3B82F6', '#8B5CF6', '#EF4444', '#10B981'];
+                const bgColor = user?.name ? initialColors[user.name.length % initialColors.length] : '#3B82F6';
+
+                return (
+                    <div
+                        key={userId}
+                        style={{
+                            position: "absolute",
+                            left: x,
+                            top: y,
+                            transform: "translate(-2px, -2px)", // slightly shift to align cursor point
+                            transition: "left 100ms linear, top 100ms linear", // Smooth cursor interpolation
+                            zIndex: 100
+                        }}
+                    >
+                        {/* Cursor SVG */}
+                        <svg width="24" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.2))" }}>
+                            <path d="M5.65376 2.13812L20.596 21.0827L12.551 21.5658L10.3523 29.8327L2.94632 10.9576L5.65376 2.13812Z" fill={bgColor} stroke="white" strokeWidth="2" strokeLinejoin="round" />
+                        </svg>
+
+                        {/* User Name Pill */}
+                        <div style={{
+                            marginTop: 2,
+                            marginLeft: 18,
+                            background: bgColor,
+                            color: "white",
+                            padding: "4px 8px",
+                            borderRadius: 12,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            fontFamily: T.font,
+                            whiteSpace: "nowrap",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6
+                        }}>
+                            {user?.name || "Unknown"}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
 export const DetailView = ({
     images,
     selectedImage,
@@ -259,7 +310,9 @@ export const DetailView = ({
     setHighlightedCommentId,
     currentUser,
     commentsLoading,
-    submitReply
+    submitReply,
+    cursors,
+    broadcastCursorMove
 }) => {
     const ww = useWindowWidth();
     if (!selectedImage) return null;
@@ -272,6 +325,9 @@ export const DetailView = ({
     const [dragOff, setDragOff] = useState({ x: 0, y: 0 });
     const [contextMenu, setContextMenu] = useState(null);
     const canvasRef = useRef(null);
+
+    // Throttle cursor broadcasts to avoid spamming the websocket (e.g., 50ms)
+    const lastBroadcastRef = useRef(0);
 
     const {
         pan, scale, isSpaceDown, isPanning,
@@ -375,7 +431,24 @@ export const DetailView = ({
                 onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
                 onDrop={handleDropLocal}
                 onMouseDown={handleMouseDown}
-                onMouseMove={(e) => handleMouseMoveLocal(e, dragging, dragOff, onImageMoved)}
+                onMouseMove={(e) => {
+                    handleMouseMoveLocal(e, dragging, dragOff, onImageMoved);
+
+                    // Throttle broadcast
+                    const now = Date.now();
+                    if (now - lastBroadcastRef.current > 50 && broadcastCursorMove) {
+                        const r = canvasRef.current.getBoundingClientRect();
+                        const centerX = r.width / 2;
+                        const centerY = r.height / 2;
+                        const localX = e.clientX - r.left;
+                        const localY = e.clientY - r.top;
+                        const logicalX = (localX - centerX - pan.x) / scale;
+                        const logicalY = (localY - centerY - pan.y) / scale;
+
+                        broadcastCursorMove(logicalX, logicalY);
+                        lastBroadcastRef.current = now;
+                    }
+                }}
                 onMouseUp={() => {
                     if (dragging && dragging.id) {
                         const img = images.find(i => i.id === dragging.id);
@@ -507,6 +580,10 @@ export const DetailView = ({
                             activeWspId={activeWspId}
                             submitComment={submitComment}
                         />
+                    )}
+
+                    {cursors && Object.keys(cursors).length > 0 && (
+                        <LiveCursors cursors={cursors} />
                     )}
                 </div>
 
