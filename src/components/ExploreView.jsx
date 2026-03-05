@@ -21,7 +21,7 @@ const ImageWithSkeleton = ({ src, style, ...props }) => {
     );
 };
 
-export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, setCurrentTab, savedImages, toggleSave, hovered, setHovered, loaded, gridPadding, setGridPadding, themeMode, setThemeMode, hideImage, showToast, user, signInWithGoogle, signOut, deleteImage }) => {
+export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, setCurrentTab, savedImages, toggleSave, hovered, setHovered, loaded, gridPadding, setGridPadding, themeMode, setThemeMode, hideImage, showToast, user, notifications, signInWithGoogle, signOut, deleteImage }) => {
     const ww = useWindowWidth();
     const cols = ww < 640 ? 2 : ww < 1024 ? 3 : 4;
     const [tabLoaded, setTabLoaded] = useState(false);
@@ -50,7 +50,7 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
 
     return (
         <>
-            <NavBar onSettingsClick={() => setIsSettingsOpen(!isSettingsOpen)} currentTab={currentTab} setCurrentTab={setCurrentTab} user={user} />
+            <NavBar onSettingsClick={() => setIsSettingsOpen(!isSettingsOpen)} currentTab={currentTab} setCurrentTab={setCurrentTab} user={user} notifications={notifications} />
 
             {/* Settings Card Overlay */}
             {isSettingsOpen && (

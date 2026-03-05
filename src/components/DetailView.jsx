@@ -1,11 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, ArrowLeft } from "lucide-react";
 import { NavBar } from "./NavBar";
 import { Pin } from "./Pin";
 import { CommentItem } from "./CommentItem";
 import { FloatingActions } from "./FloatingActions";
+import { supabase } from "../lib/supabase";
 import { T } from "../lib/theme";
 import { useWindowWidth } from "../lib/useWindowWidth";
+import { useCanvasCamera } from "../hooks/useCanvasCamera";
+import { CommentInput } from "./CommentInput";
 
 const ImageWithSkeleton = ({ src, style, ...props }) => {
     const [loaded, setLoaded] = useState(false);
@@ -24,11 +27,213 @@ const ImageWithSkeleton = ({ src, style, ...props }) => {
     );
 };
 
+const ThreadReplyInput = ({ onSubmit, currentUser }) => {
+    const [text, setText] = useState("");
+    const [isFocused, setIsFocused] = useState(false);
+
+    // Mentions logic
+    const [mentionQuery, setMentionQuery] = useState(null);
+    const [mentionResults, setMentionResults] = useState([]);
+    const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+    const inputRef = useRef(null);
+
+    useEffect(() => {
+        if (text === "") {
+            setMentionQuery(null);
+            return;
+        }
+
+        const cursorPosition = inputRef.current?.selectionStart || 0;
+        const textBeforeCursor = text.slice(0, cursorPosition);
+        const match = textBeforeCursor.match(/@([a-zA-ZÀ-ÿ0-9_]*)$/);
+
+        if (match) {
+            setMentionQuery(match[1]);
+        } else {
+            setMentionQuery(null);
+        }
+    }, [text]);
+
+    useEffect(() => {
+        if (mentionQuery === null) {
+            setMentionResults([]);
+            return;
+        }
+
+        const fetchUsers = async () => {
+            setIsSearchingUsers(true);
+            const { data, error } = await supabase.rpc('search_users', { search_term: mentionQuery });
+            if (!error && data) {
+                setMentionResults(data);
+            }
+            setIsSearchingUsers(false);
+        };
+
+        const timer = setTimeout(fetchUsers, 300);
+        return () => clearTimeout(timer);
+    }, [mentionQuery, currentUser?.id]);
+
+    const insertMention = (user) => {
+        const cursorPosition = inputRef.current?.selectionStart || 0;
+        const textBeforeCursor = text.slice(0, cursorPosition);
+        const textAfterCursor = text.slice(cursorPosition);
+
+        const match = textBeforeCursor.match(/@([a-zA-ZÀ-ÿ0-9_]*)$/);
+        if (match) {
+            const newTextBefore = textBeforeCursor.slice(0, match.index);
+            const firstName = user.full_name.split(' ')[0];
+            const insertedText = `@${firstName} `;
+            setText(newTextBefore + insertedText + textAfterCursor);
+
+            setTimeout(() => {
+                if (inputRef.current) {
+                    inputRef.current.focus();
+                    const newPos = newTextBefore.length + insertedText.length;
+                    inputRef.current.setSelectionRange(newPos, newPos);
+                }
+            }, 0);
+        }
+        setMentionQuery(null);
+    };
+
+    return (
+        <div style={{ position: "relative", width: "100%" }} onWheel={(e) => e.stopPropagation()}>
+            <div
+                style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    background: T.surface,
+                    borderRadius: 12,
+                    border: isFocused ? `1px solid color-mix(in srgb, ${T.text} 15%, transparent)` : `1px solid ${T.surfaceBorder}`,
+                    transition: "border 180ms ease, box-shadow 180ms ease",
+                    boxShadow: isFocused ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
+                    overflow: "hidden"
+                }}
+            >
+                <div style={{ position: "relative" }}>
+                    <textarea
+                        ref={inputRef}
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        placeholder="Add a reply... (use @ to mention)"
+                        style={{
+                            width: "100%",
+                            minHeight: 44,
+                            maxHeight: 150,
+                            padding: "12px 12px 8px 12px",
+                            border: "none",
+                            outline: "none",
+                            background: "transparent",
+                            color: T.text,
+                            fontFamily: T.font,
+                            fontSize: 14,
+                            resize: "none", // Prevent native resize to keep button position stable, rely on auto-growth if needed (or scroll)
+                            display: "block",
+                            boxSizing: "border-box"
+                        }}
+                        onFocus={() => setIsFocused(true)}
+                        onBlur={() => setIsFocused(false)}
+                        onWheel={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                if (text.trim()) { onSubmit(text); setText(""); }
+                            }
+                        }}
+                    />
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 8px 8px 8px", background: "transparent" }}>
+                    <button
+                        onClick={() => { if (text.trim()) { onSubmit(text); setText(""); setIsFocused(false); } }}
+                        disabled={!text.trim()}
+                        style={{
+                            padding: "6px 14px",
+                            borderRadius: T.rFull,
+                            border: "none",
+                            background: text.trim() ? T.text : "rgba(0,0,0,0.05)",
+                            color: text.trim() ? T.bg : T.textSec,
+                            cursor: text.trim() ? "pointer" : "default",
+                            fontSize: 13,
+                            fontFamily: T.font,
+                            fontWeight: 600,
+                            transition: "all 150ms ease"
+                        }}
+                    >
+                        Reply
+                    </button>
+                </div>
+            </div>
+
+            {/* Mention Dropdown */}
+            {mentionQuery !== null && (
+                <div style={{
+                    position: "absolute", bottom: "100%", left: 0, marginBottom: 8,
+                    width: "100%", boxSizing: "border-box", background: T.surface, border: `1px solid ${T.surfaceBorder}`,
+                    borderRadius: 20, padding: 8, boxShadow: "0 12px 48px rgba(0,0,0,0.12)",
+                    zIndex: 110, animation: "fadeIn 150ms ease",
+                    maxHeight: 280, overflowY: "auto",
+                    borderRight: "8px solid transparent"
+                }}>
+                    {isSearchingUsers ? (
+                        <div style={{ padding: "10px 16px", textAlign: "center", color: T.textSec, fontSize: 13, fontFamily: T.font }}>
+                            Buscando...
+                        </div>
+                    ) : mentionResults.length === 0 ? (
+                        <div style={{ padding: "10px 16px", textAlign: "center", color: T.textSec, fontSize: 13, fontFamily: T.font }}>
+                            Nenhum usuário encontrado.
+                        </div>
+                    ) : (
+                        mentionResults.map((u, idx) => {
+                            const isYou = u.id === currentUser?.id || u.full_name === currentUser?.name;
+                            const initialColors = ['#FBBF24', '#3B82F6', '#8B5CF6', '#EF4444', '#10B981'];
+                            const bgColor = initialColors[u.full_name.length % initialColors.length];
+
+                            return (
+                                <div
+                                    key={u.id}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        insertMention(u);
+                                    }}
+                                    style={{
+                                        display: "flex", alignItems: "center", gap: 12, padding: "8px 12px",
+                                        cursor: "pointer", transition: "background 150ms ease",
+                                        borderRadius: 12,
+                                        background: idx === 0 ? T.surfaceHover : "transparent"
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = T.ghost}
+                                    onMouseLeave={e => e.currentTarget.style.background = idx === 0 ? T.surfaceHover : "transparent"}
+                                >
+                                    <div style={{ width: 34, height: 34, borderRadius: T.rFull, flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center", background: u.avatar_url ? "transparent" : bgColor }}>
+                                        {u.avatar_url ? (
+                                            <img src={u.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                        ) : (
+                                            <span style={{ fontSize: 14, fontWeight: 500, color: "#FFFFFF", margin: "auto" }}>{u.full_name.charAt(0).toUpperCase()}</span>
+                                        )}
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                        <span style={{ fontSize: 14, fontFamily: T.font, color: T.text, fontWeight: 400, letterSpacing: "-0.14px" }}>
+                                            {u.full_name} {isYou && <span style={{ opacity: 0.6 }}>(You)</span>}
+                                        </span>
+                                        <span style={{ fontSize: 13, fontFamily: T.font, color: T.textSec, letterSpacing: "-0.13px" }}>
+                                            {u.email}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 export const DetailView = ({
     images,
     selectedImage,
     closeDetail,
-    onAddClick,
     comments,
     commentsOpen,
     setCommentsOpen,
@@ -40,17 +245,9 @@ export const DetailView = ({
     setNewText,
     hoveredPin,
     setHoveredPin,
-    dragging,
-    setDragging,
-    dragOff,
-    setDragOff,
-    pan,
-    setPan,
-    scale,
-    setScale,
-    canvasRef,
-    handleDrop,
-    handleCMove,
+    initialPan,
+    handleFilesDrop,
+    onImageMoved,
     submitComment,
     toggleStar,
     editComment,
@@ -59,111 +256,95 @@ export const DetailView = ({
     deleteImage,
     highlightedCommentId,
     setHighlightedCommentId,
-    currentUser
+    currentUser,
+    commentsLoading,
+    submitReply
 }) => {
     const ww = useWindowWidth();
     if (!selectedImage) return null;
     const panelW = ww < 768 ? ww : 440;
     const imgShift = 0;
 
-    const [isSpaceDown, setIsSpaceDown] = useState(false);
-    const [isPanning, setIsPanning] = useState(false);
-    const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-    const [contextMenu, setContextMenu] = useState(null);
+    const [activeThreadId, setActiveThreadId] = useState(null);
 
+    const [dragging, setDragging] = useState(null);
+    const [dragOff, setDragOff] = useState({ x: 0, y: 0 });
+    const [contextMenu, setContextMenu] = useState(null);
+    const canvasRef = useRef(null);
+
+    const {
+        pan, scale, isSpaceDown, isPanning,
+        handleWheel, handleMouseDown, handleMouseMoveLocal, handleMouseUpOrLeave
+    } = useCanvasCamera(initialPan, canvasRef, addingPin, setAddingPin, setNewPin, setNewText);
+
+    // native paste listener mapped to logical coordinates
+    useEffect(() => {
+        const handlePaste = (e) => {
+            const files = Array.from(e.clipboardData?.files || []).filter(f => f.type.startsWith("image/"));
+            if (!files.length) return;
+            e.preventDefault();
+
+            const syntheticEvent = {
+                preventDefault: () => { },
+                stopPropagation: () => { },
+                dataTransfer: { files }
+            };
+
+            // center the pasted image on current logical viewing center using the exact same math as the canvas pan bounds
+            const r = canvasRef.current?.getBoundingClientRect();
+            if (!r) return;
+            // The logical center of the screen based on scale and pan
+            const logicalX = (-pan.x) / scale;
+            const logicalY = (-pan.y) / scale;
+
+            handleFilesDrop(syntheticEvent, "detail", logicalX, logicalY);
+        };
+        window.addEventListener("paste", handlePaste);
+        return () => window.removeEventListener("paste", handlePaste);
+    }, [handleFilesDrop, pan, scale]);
+
+    // Handle ESC key to cancel pin placement
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.code === "Escape") {
+            if (e.key === "Escape" && addingPin) {
                 setAddingPin(false);
                 setNewPin(null);
                 setNewText("");
-                // don't return here so we can also check for other things if needed, but returning is fine
-                return;
-            }
-
-            if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-
-            if (e.code === "Space") {
-                e.preventDefault();
-                setIsSpaceDown(true);
-            } else if (e.code === "KeyC") {
-                e.preventDefault();
-                setAddingPin(prev => !prev);
-                if (newPin) {
-                    setNewPin(null);
-                    setNewText("");
-                }
-            }
-        };
-        const handleKeyUp = (e) => {
-            if (e.code === "Space") {
-                setIsSpaceDown(false);
-                setIsPanning(false);
             }
         };
         window.addEventListener("keydown", handleKeyDown);
-        window.addEventListener("keyup", handleKeyUp);
-        return () => {
-            window.removeEventListener("keydown", handleKeyDown);
-            window.removeEventListener("keyup", handleKeyUp);
-        };
-    }, []);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [addingPin, setAddingPin, setNewPin, setNewText]);
 
-    useEffect(() => {
-        const handleNativeWheel = (e) => {
-            if (e.ctrlKey || e.metaKey) {
-                e.preventDefault();
-            }
-        };
-        const canvas = canvasRef.current;
-        if (canvas) {
-            canvas.addEventListener("wheel", handleNativeWheel, { passive: false });
-        }
-        return () => {
-            if (canvas) {
-                canvas.removeEventListener("wheel", handleNativeWheel);
-            }
-        };
-    }, []);
-
-    const handleWheel = (e) => {
-        if (e.ctrlKey || e.metaKey) {
+    const handleDropLocal = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             const r = canvasRef.current.getBoundingClientRect();
-            const pointerX = e.clientX - r.left;
-            const pointerY = e.clientY - r.top;
+            const centerX = r.width / 2;
+            const centerY = r.height / 2;
+            const logicalX = (e.clientX - r.left - centerX - pan.x) / scale;
+            const logicalY = (e.clientY - r.top - centerY - pan.y) / scale;
 
-            const logicalX = (pointerX - r.width / 2 - pan.x) / scale;
-            const logicalY = (pointerY - r.height / 2 - pan.y) / scale;
-
-            const delta = e.deltaY * -0.01;
-            const newScale = Math.min(Math.max(0.2, scale + delta), 4);
-
-            if (newScale !== scale) {
-                setScale(newScale);
-                setPan({
-                    x: pointerX - r.width / 2 - logicalX * newScale,
-                    y: pointerY - r.height / 2 - logicalY * newScale
-                });
-            }
-        } else {
-            setPan(p => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }));
+            handleFilesDrop(e, "detail", logicalX, logicalY);
+            return;
         }
-    };
+        try {
+            const rawData = e.dataTransfer.getData("text/plain");
+            if (!rawData) return;
+            const d = JSON.parse(rawData);
 
-    const handleMouseDown = (e) => {
-        if (isSpaceDown || e.button === 1) { // Space + click or Middle click
-            e.preventDefault();
-            setIsPanning(true);
-            setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-        }
-    };
+            const r = canvasRef.current.getBoundingClientRect();
+            const centerX = r.width / 2;
+            const centerY = r.height / 2;
+            const logicalX = (e.clientX - r.left - centerX - pan.x) / scale;
+            const logicalY = (e.clientY - r.top - centerY - pan.y) / scale;
 
-    const handleMouseMoveLocal = (e) => {
-        if (isPanning) {
-            setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
-        } else {
-            handleCMove(e);
-        }
+            const dropDrawW = 300;
+            const dropDrawH = (d.h / d.w) * dropDrawW;
+
+            if (onImageMoved) onImageMoved(d.id, logicalX - dropDrawW / 2, logicalY - dropDrawH / 2);
+        } catch { }
     };
 
 
@@ -171,6 +352,9 @@ export const DetailView = ({
     const activeWspId = selectedImage.workspaceId || selectedImage.id;
     const cw = images.filter(img => (img.workspaceId || img.id) === activeWspId);
     const activeComments = comments.filter((c) => c.workspaceId === activeWspId);
+    const rootComments = activeComments.filter(c => !c.parentId);
+    const activeThreadComment = activeThreadId ? rootComments.find(c => c.id === activeThreadId) : null;
+    const threadReplies = activeThreadId ? activeComments.filter(c => c.parentId === activeThreadId) : [];
 
     return (
         <div style={{ position: "fixed", inset: 0, background: T.bg, zIndex: 50, display: "flex", flexDirection: "column", opacity: animating ? 0 : 1, transition: "opacity 400ms cubic-bezier(0,0,.2,1)" }}>
@@ -188,15 +372,22 @@ export const DetailView = ({
                 ref={canvasRef}
                 style={{ flex: 1, position: "relative", overflow: "hidden", userSelect: "none", WebkitUserSelect: "none", cursor: isSpaceDown ? (isPanning ? "grabbing" : "grab") : (addingPin ? "crosshair" : "default") }}
                 onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-                onDrop={handleDrop}
+                onDrop={handleDropLocal}
                 onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMoveLocal}
-                onMouseUp={() => { setDragging(null); setIsPanning(false); }}
-                onMouseLeave={() => { setDragging(null); setIsPanning(false); }}
+                onMouseMove={(e) => handleMouseMoveLocal(e, dragging, dragOff, onImageMoved)}
+                onMouseUp={() => { setDragging(null); handleMouseUpOrLeave(); }}
+                onMouseLeave={() => { setDragging(null); handleMouseUpOrLeave(); }}
                 onClick={(e) => {
                     setContextMenu(null);
                     if (isPanning || dragging || !addingPin) return;
                     if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") return;
+                    if (newPin) {
+                        // Se já tem um pino sendo adicionado e clicar fora dele no canvas, cancela a ação.
+                        setNewPin(null);
+                        setAddingPin(false);
+                        setNewText("");
+                        return;
+                    }
                     const r = canvasRef.current.getBoundingClientRect();
                     const centerX = r.width / 2;
                     const centerY = r.height / 2;
@@ -211,7 +402,7 @@ export const DetailView = ({
                 {/* Transform Wrapper for Pan and Zoom */}
                 <div style={{ position: "absolute", inset: 0, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: "center center", transition: isPanning ? "none" : "transform 100ms ease-out" }}>
 
-                    {cw.map(img => {
+                    {[...cw].reverse().map(img => {
                         const isSelected = img.id === selectedImage.id;
 
                         const defW = ww < 640 ? window.innerWidth * 0.85 : ww < 1024 ? 380 : 440;
@@ -220,8 +411,8 @@ export const DetailView = ({
                         const renderW = img.width || defW;
                         const renderH = img.height || defH;
 
-                        const renderX = img.x !== undefined ? img.x : -renderW / 2;
-                        const renderY = img.y !== undefined ? img.y : -renderH / 2;
+                        const renderX = img.x !== undefined && img.x !== null ? img.x : -renderW / 2;
+                        const renderY = img.y !== undefined && img.y !== null ? img.y : -renderH / 2;
 
                         return (
                             <div
@@ -258,7 +449,7 @@ export const DetailView = ({
                                         borderRadius: T.rImg, overflow: "visible", position: "relative",
                                         userSelect: "none", WebkitUserSelect: "none",
                                         cursor: addingPin ? "crosshair" : "grab",
-                                        boxShadow: isSelected ? "0 12px 48px rgba(0,0,0,0.08)" : "0 4px 20px rgba(0,0,0,0.1)",
+                                        boxShadow: "none",
                                         transition: "box-shadow 300ms ease"
                                     }}
                                 >
@@ -283,38 +474,20 @@ export const DetailView = ({
                         );
                     })}
 
-                    {activeComments.map((c) => (
+                    {rootComments.map((c) => (
                         <Pin key={c.id} c={c} hoveredPin={hoveredPin} setHoveredPin={setHoveredPin} setCommentsOpen={setCommentsOpen} scale={scale} setHighlightedCommentId={setHighlightedCommentId} />
                     ))}
 
                     {addingPin && newPin && (
-                        <div style={{ position: "absolute", left: `calc(50% + ${newPin.x}px)`, top: `calc(50% + ${newPin.y}px)`, transform: "translate(-50%, -50%)", zIndex: 100, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, pointerEvents: "auto" }}>
-                            <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#3B82F6", border: "3px solid white", boxShadow: "0 2px 8px rgba(0,0,0,0.2)", animation: "pulse 1.5s infinite" }} />
-                            <div style={{ animation: "slideUp 200ms cubic-bezier(0,0,.2,1)" }}>
-                                <input
-                                    type="text"
-                                    placeholder="Add your thought..."
-                                    value={newText}
-                                    onChange={(e) => setNewText(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter" && newText.trim()) {
-                                            submitComment();
-                                        }
-                                    }}
-                                    autoFocus
-                                    style={{
-                                        width: 280, maxWidth: "90vw",
-                                        height: 44, borderRadius: T.rFull, border: `1px solid ${T.surfaceBorder}`,
-                                        padding: "0 20px", fontSize: 14, fontFamily: T.font,
-                                        background: T.surfaceHover, outline: "none", color: T.text,
-                                        transition: "border 180ms ease, box-shadow 180ms ease",
-                                        boxShadow: "0 8px 32px rgba(0,0,0,0.12)"
-                                    }}
-                                    onFocus={(e) => { e.target.style.borderColor = T.textTer; e.target.style.boxShadow = "0 8px 32px rgba(17,17,16,0.15)"; }}
-                                    onBlur={(e) => { e.target.style.borderColor = T.surfaceBorder; e.target.style.boxShadow = "0 8px 32px rgba(0,0,0,0.12)"; }}
-                                />
-                            </div>
-                        </div>
+                        <CommentInput
+                            newText={newText}
+                            setNewText={setNewText}
+                            newPin={newPin}
+                            scale={scale}
+                            currentUser={currentUser}
+                            activeWspId={activeWspId}
+                            submitComment={submitComment}
+                        />
                     )}
                 </div>
 
@@ -341,7 +514,7 @@ export const DetailView = ({
                     setNewPin={setNewPin}
                     setNewText={setNewText}
                     setCommentsOpen={setCommentsOpen}
-                    commentsLength={activeComments.length}
+                    commentsLength={rootComments.length}
                 />
             </div>
 
@@ -352,7 +525,7 @@ export const DetailView = ({
                     position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)",
                     backdropFilter: "blur(4px)", zIndex: 190,
                     opacity: commentsOpen && ww < 768 ? 1 : 0,
-                    pointerEvents: commentsOpen && ww < 768 ? "auto" : "none",
+                    pointerEvents: commentsOpen && ww < 768 ? "auto" : "none", // Fix: allow canvas clicks on desktop
                     transition: "opacity 400ms cubic-bezier(0.16, 1, 0.3, 1)"
                 }}
             />
@@ -368,19 +541,114 @@ export const DetailView = ({
                 transition: "transform 500ms cubic-bezier(0.16, 1, 0.3, 1), opacity 500ms ease"
             }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 31px", flexShrink: 0 }}>
-                    <span style={{ fontSize: 20, fontWeight: 400, letterSpacing: "-0.2px", fontFamily: T.font }}>Thoughts</span>
+                    {activeThreadId ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <button
+                                onClick={() => setActiveThreadId(null)}
+                                style={{ width: 32, height: 32, borderRadius: T.rFull, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 180ms ease", marginRight: 8 }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = T.ghost)}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                            >
+                                <ArrowLeft size={18} color={T.text} />
+                            </button>
+                            <div style={{ display: "flex", flexDirection: "column" }}>
+                                <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.2px", fontFamily: T.font, color: T.text }}>
+                                    Thread
+                                </span>
+                                <span style={{ fontSize: 13, color: T.textSec, fontFamily: T.font }}>
+                                    # {activeThreadComment?.author || "User"}
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <span style={{ fontSize: 20, fontWeight: 400, letterSpacing: "-0.2px", fontFamily: T.font }}>Thoughts</span>
+                    )}
                     <button
-                        onClick={() => setCommentsOpen(false)}
-                        style={{ width: 40, height: 40, borderRadius: T.rFull, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 180ms ease" }}
+                        onClick={() => { setCommentsOpen(false); setActiveThreadId(null); }}
+                        style={{ width: 40, height: 40, borderRadius: T.rFull, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 180ms ease", marginRight: "-8px" }}
                         onMouseEnter={(e) => (e.currentTarget.style.background = T.ghost)}
                         onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                     >
                         <X size={20} color={T.text} />
                     </button>
                 </div>
-                <div style={{ flex: 1, overflowY: "auto", padding: "0 23px 31px 31px", marginRight: 8 }}>
-                    {activeComments.map((c, i) => <CommentItem key={c.id} c={c} i={i} toggleStar={toggleStar} editComment={editComment} deleteComment={deleteComment} commentsLength={activeComments.length} highlightedCommentId={highlightedCommentId} currentUser={currentUser} />)}
+
+                {/* Scrollable Content */}
+                <div style={{ flex: 1, overflowY: "auto", borderRight: "4px solid transparent" }}>
+                    {commentsLoading ? (
+                        Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} style={{ padding: "24px 31px", borderRadius: 16 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                    <div style={{ width: 32, height: 32, borderRadius: T.rFull, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+                                    <div style={{ width: 100, height: 14, borderRadius: 4, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+                                </div>
+                                <div style={{ marginTop: 16, width: "100%", height: 14, borderRadius: 4, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+                                <div style={{ marginTop: 8, width: "70%", height: 14, borderRadius: 4, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+                                <div style={{ marginTop: 16, width: 64, height: 36, borderRadius: T.rFull, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+                            </div>
+                        ))
+                    ) : activeThreadId && activeThreadComment ? (
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                            <div style={{ padding: "0 31px 8px 31px" }}>
+                                <CommentItem
+                                    key={activeThreadComment.id} c={activeThreadComment} i={0}
+                                    toggleStar={toggleStar} editComment={editComment} deleteComment={deleteComment}
+                                    currentUser={currentUser} isThreadView={true}
+                                />
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", margin: "16px 15px 16px 15px", flexShrink: 0 }}>
+                                {threadReplies.length > 0 && (
+                                    <span style={{ fontSize: 13, fontWeight: 500, color: T.textSec, padding: "0 16px", whiteSpace: "nowrap", fontFamily: T.font }}>
+                                        {threadReplies.length} {threadReplies.length === 1 ? "resposta" : "respostas"}
+                                    </span>
+                                )}
+                                <div style={{ flex: 1, height: 1, background: T.surfaceBorder }} />
+                            </div>
+
+                            {/* Thread Replies */}
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "0 15px 31px 15px" }}>
+                                {threadReplies.length > 0 ? (
+                                    threadReplies.map((reply, i) => (
+                                        <div key={reply.id} style={{ padding: "0 16px" }}>
+                                            <CommentItem
+                                                c={reply} i={i + 1}
+                                                toggleStar={toggleStar} editComment={editComment} deleteComment={deleteComment}
+                                                currentUser={currentUser} isThreadView={true}
+                                            />
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p style={{ fontSize: 13, color: T.textSec, padding: "24px 0", textAlign: "center", fontFamily: T.font }}>No replies yet. Be the first!</p>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={{ padding: "0 15px 31px 15px", display: "flex", flexDirection: "column", gap: 4 }}>
+                            {rootComments.map((c, i) => (
+                                <div key={c.id} style={{ padding: "0 16px" }}>
+                                    <CommentItem
+                                        c={c} i={i}
+                                        toggleStar={toggleStar} editComment={editComment} deleteComment={deleteComment}
+                                        commentsLength={rootComments.length} highlightedCommentId={highlightedCommentId}
+                                        currentUser={currentUser}
+                                        replies={activeComments.filter(r => r.parentId === c.id)}
+                                        onOpenThread={() => setActiveThreadId(c.id)}
+                                        isThreadView={false}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
+
+                {activeThreadId && (
+                    <div style={{ padding: "16px 31px 24px 31px", borderTop: `1px solid ${T.surfaceBorder}`, background: T.surface, flexShrink: 0, zIndex: 10 }}>
+                        <ThreadReplyInput
+                            onSubmit={(text) => submitReply(activeWspId, text, activeThreadId)}
+                        />
+                    </div>
+                )}
             </div>
         </div>
     );

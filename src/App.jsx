@@ -17,6 +17,7 @@ export default function App() {
     const [selectedImage, setSelectedImage] = useState(null);
     const [commentsOpen, setCommentsOpen] = useState(false);
     const [comments, setComments] = useState([]);
+    const [notifications, setNotifications] = useState([]);
     const [hovered, setHovered] = useState(null);
     const [loaded, setLoaded] = useState(false);
     const [animating, setAnimating] = useState(false);
@@ -24,16 +25,13 @@ export default function App() {
     const [newPin, setNewPin] = useState(null);
     const [newText, setNewText] = useState("");
     const [hoveredPin, setHoveredPin] = useState(null);
-    const [dragging, setDragging] = useState(null);
-    const [dragOff, setDragOff] = useState({ x: 0, y: 0 });
-    const [pan, setPan] = useState({ x: 0, y: 0 });
-    const [scale, setScale] = useState(1);
+    const [initialPan, setInitialPan] = useState({ x: 0, y: 0 });
     const [gridPadding, setGridPadding] = useState(4);
     const [themeMode, setThemeMode] = useState("light");
     const [highlightedCommentId, setHighlightedCommentId] = useState(null);
     const [uploadingCount, setUploadingCount] = useState(0);
     const [pendingDeletions, setPendingDeletions] = useState(new Set());
-    const canvasRef = useRef(null);
+    const [commentsLoading, setCommentsLoading] = useState(false);
     const deleteTimeouts = useRef({});
     const toastTimeoutRef = useRef(null);
 
@@ -114,6 +112,47 @@ export default function App() {
         fetchSaved();
     }, [user?.id]);
 
+    // Fetch notifications
+    useEffect(() => {
+        if (!user) {
+            setNotifications([]);
+            return;
+        }
+
+        const fetchNotifications = async () => {
+            const { data, error } = await supabase
+                .from("notifications")
+                .select("*")
+                .eq("user_id", user.id)
+                .order("created_at", { ascending: false });
+
+            if (!error && data) {
+                setNotifications(data);
+            }
+        };
+
+        fetchNotifications();
+
+        const channel = supabase.channel(`notifications_${user.id}`)
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+                (payload) => {
+                    setNotifications(prev => [payload.new, ...prev]);
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+                (payload) => {
+                    setNotifications(prev => prev.map(n => n.id === payload.new.id ? payload.new : n));
+                }
+            )
+            .subscribe();
+
+        return () => supabase.removeChannel(channel);
+    }, [user?.id]);
+
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', themeMode);
     }, [themeMode]);
@@ -132,14 +171,13 @@ export default function App() {
 
             if (view === "explore") {
                 handleFilesDrop(syntheticEvent, "explore", 0, 0);
-            } else if (view === "detail") {
-                handleFilesDrop(syntheticEvent, "detail", window.innerWidth / 2, window.innerHeight / 2);
             }
+            // DetailView will handle its own paste event natively using its local canvas state
         };
 
         window.addEventListener("paste", handlePaste);
         return () => window.removeEventListener("paste", handlePaste);
-    }, [view, scale, pan, selectedImage, images]);
+    }, [view, images]);
 
     // Fetch and subscribe to comments when a workspace is opened
     useEffect(() => {
@@ -147,6 +185,7 @@ export default function App() {
         const activeWspId = selectedImage.workspaceId || selectedImage.id;
 
         const fetchComments = async () => {
+            setCommentsLoading(true);
             const { data, error } = await supabase
                 .from("comments")
                 .select("*")
@@ -174,13 +213,15 @@ export default function App() {
                     text: c.text,
                     pinX: c.pin_x,
                     pinY: c.pin_y,
+                    parentId: c.parent_id,
                     stars: c.stars,
                     starred: userLikes.includes(c.id), // Local state synced with user's likes 
                     time: "now", relativeTime: "" // Mocking time for now
                 }));
-                // Original app put newest first in the array `[new, ...prev]`
-                setComments(mapped.reverse());
+                // Keep chronological order (oldest first) as requested: "ordem por adição"
+                setComments(mapped);
             }
+            setCommentsLoading(false);
         };
 
         fetchComments();
@@ -195,7 +236,7 @@ export default function App() {
                     // Dont duplicate if we inserted it ourselves optimistically
                     setComments(prev => {
                         if (prev.find(existing => existing.id === c.id)) return prev;
-                        return [{
+                        return [...prev, {
                             id: c.id,
                             workspaceId: c.workspace_id,
                             authorId: c.author_id,
@@ -204,10 +245,11 @@ export default function App() {
                             text: c.text,
                             pinX: c.pin_x,
                             pinY: c.pin_y,
+                            parentId: c.parent_id,
                             stars: c.stars,
                             starred: false,
                             time: "now", relativeTime: ""
-                        }, ...prev];
+                        }];
                     });
                 }
             )
@@ -242,15 +284,16 @@ export default function App() {
         setAddingPin(false);
         setNewPin(null);
 
+        // Center specifically on the selected image
         let panX = 0;
         let panY = 0;
-        if (latestImg.x !== undefined) {
+
+        if (latestImg.x !== undefined && latestImg.x !== null) {
             panX = -(latestImg.x + (latestImg.width || 440) / 2);
             panY = -(latestImg.y + (latestImg.height || ((latestImg.h / latestImg.w) * 440)) / 2);
         }
 
-        setPan({ x: panX, y: panY });
-        setScale(1);
+        setInitialPan({ x: panX, y: panY });
         setTimeout(() => setAnimating(false), 60);
     };
 
@@ -286,6 +329,89 @@ export default function App() {
         } else {
             const { error } = await supabase.from('comment_likes').insert([{ user_id: user.id, comment_id: id }]);
             if (error) console.error("Toggle star failed", error);
+
+            // Create notification if we are liking someone else's comment
+            if (c.authorId !== user.id) {
+                await supabase.from('notifications').insert([{
+                    user_id: c.authorId,
+                    actor_id: user.id,
+                    actor_name: user.name,
+                    actor_avatar: user.avatar,
+                    type: 'like',
+                    comment_id: c.id,
+                    workspace_id: c.workspaceId,
+                    read: false
+                }]);
+            }
+        }
+    };
+
+    const submitReply = async (workspaceId, text, parentId) => {
+        if (!user) {
+            showToast("You need to login to reply.");
+            return;
+        }
+        if (!text.trim()) return;
+
+        // Parse mentions for the reply
+        const mentionsMatch = text.match(/(@[a-zA-ZÀ-ÿ0-9_]+)/g);
+        let mentionedUsers = [];
+        if (mentionsMatch) {
+            const usernames = mentionsMatch.map(m => m.substring(1));
+            const { data } = await supabase.from("profiles").select("id, name").in("name", usernames);
+            if (data) mentionedUsers = data;
+        }
+
+        const parentComment = comments.find(c => c.id === parentId);
+        const pinX = (parentComment && parentComment.pinX != null) ? parentComment.pinX : 0;
+        const pinY = (parentComment && parentComment.pinY != null) ? parentComment.pinY : 0;
+
+        const newComment = {
+            id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substring(2),
+            workspace_id: workspaceId,
+            author_id: user.id,
+            author_name: user?.user_metadata?.name || user?.email?.split('@')[0] || 'Unknown User',
+            author_avatar: user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.email}`,
+            text: text,
+            pin_x: pinX, // Replies inherit parent's pin location to satisfy NOT NULL constraints
+            pin_y: pinY,
+            parent_id: parentId,
+            stars: 0
+        };
+
+        // Optimistic UI for immediate feedback
+        setComments(prev => [...prev, {
+            id: newComment.id,
+            workspaceId: newComment.workspace_id,
+            authorId: newComment.author_id,
+            author: newComment.author_name,
+            avatar: newComment.author_avatar,
+            text: newComment.text,
+            pinX: newComment.pin_x,
+            pinY: newComment.pin_y,
+            parentId: newComment.parent_id,
+            stars: newComment.stars,
+            starred: false,
+            time: "now", relativeTime: ""
+        }]);
+
+        const { error } = await supabase.from('comments').insert([newComment]);
+
+        if (error) {
+            console.error(error);
+            showToast("Failed: " + error.message + " " + (error.details || ""));
+            setComments(p => p.filter(c => c.id !== newComment.id)); // Revert optimistic UI
+        }
+        else if (mentionedUsers.length > 0) {
+            // Setup mention notifications
+            const mentionNotifications = mentionedUsers.map(u => ({
+                user_id: u.id,
+                actor_id: user.id,
+                workspace_id: workspaceId,
+                comment_id: newComment.id,
+                type: 'mention'
+            }));
+            await supabase.from("notifications").insert(mentionNotifications);
         }
     };
 
@@ -300,10 +426,10 @@ export default function App() {
         // optimistic ID for UX
         const tempId = Date.now();
 
-        // Optimistic UI
+        // Optimistic UI - appending to the bottom to respect chronological order
         setComments((p) => [
-            { id: tempId, workspaceId: activeWspId, authorId: user.id, author: user.name, avatar: user.avatar, time: "now", relativeTime: "", text: newText, stars: 0, starred: false, pinX: newPin.x, pinY: newPin.y },
             ...p,
+            { id: tempId, workspaceId: activeWspId, authorId: user.id, author: user.name, avatar: user.avatar, time: "now", relativeTime: "", text: newText, stars: 0, starred: false, pinX: newPin.x, pinY: newPin.y }
         ]);
 
         const insertData = {
@@ -482,19 +608,19 @@ export default function App() {
                     // Define local state updates
                     let logicalX, logicalY;
 
-                    if (viewTarget === "detail" && selectedImage && canvasRef.current) {
-                        drawW = 300;
-                        drawH = (img.height / img.width) * drawW;
-
-                        const r = canvasRef.current.getBoundingClientRect();
-                        const centerX = r.width / 2;
-                        const centerY = r.height / 2;
-                        logicalX = (dropX - centerX - pan.x) / scale;
-                        logicalY = (dropY - centerY - pan.y) / scale;
+                    if (viewTarget === "detail" && selectedImage) {
+                        // Max bounding box for the new workspace image object to be pasted
+                        const maxWidth = 300;
+                        if (drawW > maxWidth) {
+                            drawH = (img.height / img.width) * maxWidth;
+                            drawW = maxWidth;
+                        }
 
                         insertData.workspace_id = selectedImage.workspaceId || selectedImage.id;
-                        insertData.x_coord = logicalX - drawW / 2;
-                        insertData.y_coord = logicalY - drawH / 2;
+                        // For detail view, dropX and dropY are directly passed as logical coordinates representing the exact center-screen from DetailView.
+                        // We must offset them by half the inserted image's dimensions so the image centers itself perfectly on the viewer's screen.
+                        insertData.x_coord = dropX - (drawW / 2);
+                        insertData.y_coord = dropY - (drawH / 2);
                     }
 
                     // Insert into Supabase
@@ -516,14 +642,9 @@ export default function App() {
                             y: data.y_coord
                         };
 
-                        // if dropped in detail view, we also need to update its local position in our state
+                        // Update the optimistic UI
                         setImages(prev => {
-                            if (viewTarget === "detail" && selectedImage) {
-                                // Important: We are appending it with its local coordinates
-                                // so it renders properly in the DetailView context.
-                                return [...prev, newImg]; // append to end so it renders on top
-                            }
-                            return [newImg, ...prev]; // explore view: newest first
+                            return [newImg, ...prev]; // always newest first for Explore view
                         });
                     }
                     setUploadingCount(p => Math.max(0, p - 1));
@@ -537,64 +658,10 @@ export default function App() {
         return true;
     };
 
-    const handleDrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            const r = canvasRef.current.getBoundingClientRect();
-            handleFilesDrop(e, "detail", e.clientX - r.left, e.clientY - r.top);
-            return;
-        }
-        try {
-            const rawData = e.dataTransfer.getData("text/plain");
-            if (!rawData) return;
-            const d = JSON.parse(rawData);
-
-            const r = canvasRef.current.getBoundingClientRect();
-            const centerX = r.width / 2;
-            const centerY = r.height / 2;
-
-            const localX = e.clientX - r.left;
-            const localY = e.clientY - r.top;
-
-            const logicalX = (localX - centerX - pan.x) / scale;
-            const logicalY = (localY - centerY - pan.y) / scale;
-
-            const dropDrawW = 300;
-            const dropDrawH = (d.h / d.w) * dropDrawW;
-
-            const updatedImgInfo = {
-                workspaceId: selectedImage.workspaceId || selectedImage.id,
-                x: logicalX - dropDrawW / 2,
-                y: logicalY - dropDrawH / 2,
-                width: dropDrawW,
-                height: dropDrawH
-            };
-
-            setImages(prevImages => prevImages.map(img => {
-                if (img.id === d.id) {
-                    return { ...img, ...updatedImgInfo };
-                }
-                return img;
-            }));
-        } catch { }
-    };
-
-    const handleCMove = (e) => {
-        if (!dragging) return;
-        const r = canvasRef.current.getBoundingClientRect();
-        const centerX = r.width / 2;
-        const centerY = r.height / 2;
-
-        const localX = e.clientX - r.left;
-        const localY = e.clientY - r.top;
-
-        const logicalX = (localX - centerX - pan.x) / scale;
-        const logicalY = (localY - centerY - pan.y) / scale;
-
+    const onImageMoved = (id, x, y) => {
         setImages(prevImages => prevImages.map(img => {
-            if (img.id === dragging.id) {
-                return { ...img, x: logicalX - dragOff.x, y: logicalY - dragOff.y };
+            if (img.id === id) {
+                return { ...img, x, y };
             }
             return img;
         }));
@@ -612,8 +679,6 @@ export default function App() {
             onDrop={(e) => {
                 if (view === "explore") {
                     handleFilesDrop(e, "explore", 0, 0);
-                } else if (view === "detail") {
-                    handleDrop(e);
                 }
             }}
         >
@@ -693,6 +758,7 @@ export default function App() {
                     themeMode={themeMode}
                     setThemeMode={setThemeMode}
                     user={user}
+                    notifications={notifications}
                     signInWithGoogle={signInWithGoogle}
                     signOut={signOut}
                 />
@@ -713,17 +779,9 @@ export default function App() {
                     setNewText={setNewText}
                     hoveredPin={hoveredPin}
                     setHoveredPin={setHoveredPin}
-                    dragging={dragging}
-                    setDragging={setDragging}
-                    dragOff={dragOff}
-                    setDragOff={setDragOff}
-                    pan={pan}
-                    setPan={setPan}
-                    scale={scale}
-                    setScale={setScale}
-                    canvasRef={canvasRef}
-                    handleDrop={handleDrop}
-                    handleCMove={handleCMove}
+                    initialPan={initialPan}
+                    handleFilesDrop={handleFilesDrop}
+                    onImageMoved={onImageMoved}
                     submitComment={submitComment}
                     toggleStar={toggleStar}
                     editComment={editComment}
@@ -733,6 +791,8 @@ export default function App() {
                     highlightedCommentId={highlightedCommentId}
                     setHighlightedCommentId={setHighlightedCommentId}
                     currentUser={user}
+                    commentsLoading={commentsLoading}
+                    submitReply={submitReply}
                 />
             )}
         </div>

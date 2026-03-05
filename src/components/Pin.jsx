@@ -3,8 +3,18 @@ import { avatarSvg } from "../lib/svgGenerator";
 
 export const Pin = ({ c, hoveredPin, setHoveredPin, setCommentsOpen, scale = 1, setHighlightedCommentId }) => {
     const isH = hoveredPin === c.id;
-    // Adjusted inverseScale to be less aggressive so it remains small
-    const inverseScale = Math.max(0.6, Math.min(1.2 / scale, 1.8));
+    // Exactly cancel the canvas zoom to maintain fixed size
+    const inverseScale = 1 / scale;
+
+    const renderTextWithMentions = (text) => {
+        const parts = text.split(/(@[a-zA-ZÀ-ÿ0-9_]+)/g);
+        return parts.map((part, index) => {
+            if (part?.startsWith('@')) {
+                return <span key={index} style={{ color: T.mention, fontWeight: 500 }}>{part}</span>;
+            }
+            return part;
+        });
+    };
 
     return (
         <div
@@ -19,7 +29,7 @@ export const Pin = ({ c, hoveredPin, setHoveredPin, setCommentsOpen, scale = 1, 
         >
             <div
                 style={{
-                    width: 28, height: 28, background: T.surface,
+                    width: 36, height: 36, background: T.surface,
                     borderRadius: "50px 50px 50px 0",
                     transform: "rotate(-45deg)",
                     display: "flex", alignItems: "center", justifyContent: "center",
@@ -27,7 +37,7 @@ export const Pin = ({ c, hoveredPin, setHoveredPin, setCommentsOpen, scale = 1, 
                     transition: "box-shadow 180ms ease",
                 }}
             >
-                <div style={{ width: 22, height: 22, borderRadius: T.rFull, overflow: "hidden", transform: "rotate(45deg)", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                <div style={{ width: 30, height: 30, borderRadius: T.rFull, overflow: "hidden", transform: "rotate(45deg)", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
                     <img src={c.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </div>
             </div>
@@ -41,7 +51,7 @@ export const Pin = ({ c, hoveredPin, setHoveredPin, setCommentsOpen, scale = 1, 
                     transition: "opacity 180ms ease", zIndex: 30,
                 }}
             >
-                <div style={{ opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 13, lineHeight: 1.4 }}>{c.text}</div>
+                <div style={{ opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 13, lineHeight: 1.4 }}>{renderTextWithMentions(c.text)}</div>
             </div>
         </div>
     );

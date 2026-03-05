@@ -13,4 +13,5 @@ export const T = {
     bgNav: "var(--bgNav)",
     font: "'DM Sans', 'Helvetica Neue', Arial, sans-serif",
     rSm: 10, rMd: 20, rLg: 30, rFull: 9999, rImg: 8,
+    mention: "var(--mention)",
 };
