@@ -248,6 +248,7 @@ export const DetailView = ({
     initialPan,
     handleFilesDrop,
     onImageMoved,
+    saveImagePosition,
     submitComment,
     toggleStar,
     editComment,
@@ -375,8 +376,26 @@ export const DetailView = ({
                 onDrop={handleDropLocal}
                 onMouseDown={handleMouseDown}
                 onMouseMove={(e) => handleMouseMoveLocal(e, dragging, dragOff, onImageMoved)}
-                onMouseUp={() => { setDragging(null); handleMouseUpOrLeave(); }}
-                onMouseLeave={() => { setDragging(null); handleMouseUpOrLeave(); }}
+                onMouseUp={() => {
+                    if (dragging && dragging.id) {
+                        const img = images.find(i => i.id === dragging.id);
+                        if (img && saveImagePosition) {
+                            saveImagePosition(img.id, img.x, img.y);
+                        }
+                    }
+                    setDragging(null);
+                    handleMouseUpOrLeave();
+                }}
+                onMouseLeave={() => {
+                    if (dragging && dragging.id) {
+                        const img = images.find(i => i.id === dragging.id);
+                        if (img && saveImagePosition) {
+                            saveImagePosition(img.id, img.x, img.y);
+                        }
+                    }
+                    setDragging(null);
+                    handleMouseUpOrLeave();
+                }}
                 onClick={(e) => {
                     setContextMenu(null);
                     if (isPanning || dragging || !addingPin) return;

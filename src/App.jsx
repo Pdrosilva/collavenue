@@ -83,12 +83,27 @@ export default function App() {
             )
             .on(
                 'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'workspaces' },
+                (payload) => {
+                    const d = payload.new;
+                    setImages(prev => prev.map(img =>
+                        img.id === d.id ? { ...img, x: d.x_coord, y: d.y_coord, w: d.width, h: d.height } : img
+                    ));
+                }
+            )
+            .on(
+                'postgres_changes',
                 { event: 'DELETE', schema: 'public', table: 'workspaces' },
                 (payload) => {
                     const d = payload.old;
                     setImages(prev => prev.filter(img => img.id !== d.id));
                 }
             )
+            .on('broadcast', { event: 'image_move' }, (payload) => {
+                // Broadcast for real-time drag (bypassing DB)
+                const { id, x, y } = payload.payload;
+                setImages(prev => prev.map(img => img.id === id ? { ...img, x, y } : img));
+            })
             .subscribe();
 
         return () => supabase.removeChannel(channel);
@@ -370,8 +385,8 @@ export default function App() {
             id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substring(2),
             workspace_id: workspaceId,
             author_id: user.id,
-            author_name: user?.user_metadata?.name || user?.email?.split('@')[0] || 'Unknown User',
-            author_avatar: user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.email}`,
+            author_name: user.name, // Fixed to use the mapped user object
+            author_avatar: user.avatar,
             text: text,
             pin_x: pinX, // Replies inherit parent's pin location to satisfy NOT NULL constraints
             pin_y: pinY,
@@ -403,13 +418,15 @@ export default function App() {
             setComments(p => p.filter(c => c.id !== newComment.id)); // Revert optimistic UI
         }
         else if (mentionedUsers.length > 0) {
-            // Setup mention notifications
             const mentionNotifications = mentionedUsers.map(u => ({
                 user_id: u.id,
                 actor_id: user.id,
+                actor_name: user.name,
+                actor_avatar: user.avatar,
                 workspace_id: workspaceId,
                 comment_id: newComment.id,
-                type: 'mention'
+                type: 'mention',
+                read: false
             }));
             await supabase.from("notifications").insert(mentionNotifications);
         }
@@ -442,6 +459,15 @@ export default function App() {
             pin_y: newPin.y
         };
 
+        // Parse mentions for the comment
+        const mentionsMatch = newText.match(/(@[a-zA-ZÀ-ÿ0-9_]+)/g);
+        let mentionedUsers = [];
+        if (mentionsMatch) {
+            const usernames = mentionsMatch.map(m => m.substring(1));
+            const { data } = await supabase.from("profiles").select("id, name").in("name", usernames);
+            if (data) mentionedUsers = data;
+        }
+
         setNewText("");
         setNewPin(null);
         setAddingPin(false);
@@ -460,6 +486,21 @@ export default function App() {
         } else if (data) {
             // Update temp ID with real DB UUID
             setComments(p => p.map(c => c.id === tempId ? { ...c, id: data.id } : c));
+
+            // Insert mention notifications if any
+            if (mentionedUsers.length > 0) {
+                const mentionNotifications = mentionedUsers.map(u => ({
+                    user_id: u.id,
+                    actor_id: user.id,
+                    actor_name: user.name,
+                    actor_avatar: user.avatar,
+                    workspace_id: activeWspId,
+                    comment_id: data.id,
+                    type: 'mention',
+                    read: false
+                }));
+                await supabase.from("notifications").insert(mentionNotifications);
+            }
         }
     };
 
@@ -659,12 +700,31 @@ export default function App() {
     };
 
     const onImageMoved = (id, x, y) => {
+        // Optimistic UI updates locally
         setImages(prevImages => prevImages.map(img => {
             if (img.id === id) {
                 return { ...img, x, y };
             }
             return img;
         }));
+
+        // Broadcast to other clients
+        supabase.channel('public:workspaces').send({
+            type: 'broadcast',
+            event: 'image_move',
+            payload: { id, x, y }
+        });
+    };
+
+    const saveImagePosition = async (id, x, y) => {
+        const { error } = await supabase
+            .from('workspaces')
+            .update({ x_coord: x, y_coord: y })
+            .eq('id', id);
+
+        if (error) {
+            console.error("Failed to save image position:", error);
+        }
     };
 
     if (authLoading) return <div style={{ minHeight: "100vh", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontFamily: T.font }}>Loading session...</div>;
@@ -782,6 +842,7 @@ export default function App() {
                     initialPan={initialPan}
                     handleFilesDrop={handleFilesDrop}
                     onImageMoved={onImageMoved}
+                    saveImagePosition={saveImagePosition}
                     submitComment={submitComment}
                     toggleStar={toggleStar}
                     editComment={editComment}
