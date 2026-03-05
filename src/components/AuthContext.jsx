@@ -13,23 +13,33 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         let resolved = false;
 
-        // Hard timeout: if getSession doesn't resolve in 3s, force loading off
-        // and sign out to clear any stale tokens that block the Supabase client
-        const timeout = setTimeout(async () => {
+        // Hard timeout: if getSession doesn't resolve in 3s, nuke stale tokens
+        // directly from localStorage (bypassing the deadlocked Supabase client)
+        const timeout = setTimeout(() => {
             if (!resolved) {
-                console.warn("Auth getSession timed out after 3s, clearing stale session");
+                console.warn("Auth timed out after 3s — clearing stale tokens from localStorage");
                 resolved = true;
+
+                // Supabase stores tokens under keys like sb-<ref>-auth-token
+                // Remove ALL supabase auth keys from localStorage to break the deadlock
                 try {
-                    // Force sign out to clear the stale refresh token from localStorage
-                    // This unblocks the Supabase client's internal request queue
-                    await supabase.auth.signOut({ scope: 'local' });
-                } catch (_) { /* ignore */ }
+                    const keysToRemove = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+                            keysToRemove.push(key);
+                        }
+                    }
+                    keysToRemove.forEach(k => localStorage.removeItem(k));
+                    console.log("Cleared stale Supabase keys:", keysToRemove);
+                } catch (_) { /* localStorage may be unavailable in some environments */ }
+
                 setSession(null);
                 setLoading(false);
             }
         }, 3000);
 
-        // Obter sessão atual
+        // Try to get the current session
         (async () => {
             try {
                 const { data, error } = await supabase.auth.getSession();
@@ -50,10 +60,10 @@ export const AuthProvider = ({ children }) => {
             }
         })();
 
-        // Escutar mudanças de autenticação (Login, Logout, etc)
+        // Listen for auth state changes (login, logout, token refresh)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
-            if (loading) setLoading(false);
+            setLoading(false);
         });
 
         return () => {
