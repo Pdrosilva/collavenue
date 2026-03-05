@@ -37,8 +37,10 @@ export default function App() {
 
     const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth();
 
-    // Fetch workspaces on mount
+    // Fetch workspaces after auth resolves (avoids queuing behind stale token refresh)
     useEffect(() => {
+        if (authLoading) return;
+
         const fetchWorkspaces = async () => {
             const { data, error } = await supabase
                 .from("workspaces")
@@ -107,7 +109,7 @@ export default function App() {
             .subscribe();
 
         return () => supabase.removeChannel(channel);
-    }, []); // Re-bind if user changes to filter own cursor
+    }, [authLoading]);
 
     // Fetch saved images when user changes
     useEffect(() => {

@@ -14,10 +14,17 @@ export const AuthProvider = ({ children }) => {
         let resolved = false;
 
         // Hard timeout: if getSession doesn't resolve in 3s, force loading off
-        const timeout = setTimeout(() => {
+        // and sign out to clear any stale tokens that block the Supabase client
+        const timeout = setTimeout(async () => {
             if (!resolved) {
-                console.warn("Auth getSession timed out after 3s, forcing loading off");
+                console.warn("Auth getSession timed out after 3s, clearing stale session");
                 resolved = true;
+                try {
+                    // Force sign out to clear the stale refresh token from localStorage
+                    // This unblocks the Supabase client's internal request queue
+                    await supabase.auth.signOut({ scope: 'local' });
+                } catch (_) { /* ignore */ }
+                setSession(null);
                 setLoading(false);
             }
         }, 3000);
