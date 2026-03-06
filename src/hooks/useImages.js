@@ -1,41 +1,51 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { customAlphabet } from 'nanoid';
 import { supabase } from "../lib/supabase";
 
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 8);
 
+const PAGE_SIZE = 30;
+
 export const useImages = (user, showToast) => {
     const [images, setImages] = useState([]);
     const [loaded, setLoaded] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [savedImages, setSavedImages] = useState([]);
     const [hiddenImages, setHiddenImages] = useState([]);
     const [uploadingCount, setUploadingCount] = useState(0);
     const [pendingDeletions, setPendingDeletions] = useState(new Set());
     const deleteTimeouts = useRef({});
+    const offsetRef = useRef(0);
+    const broadcastThrottleRef = useRef(null);
 
-    // Fetch workspaces on mount
+    const mapWorkspace = (d) => ({
+        id: d.id,
+        aliasId: d.alias_id,
+        src: d.src,
+        w: d.width || 440,
+        h: d.height || 440,
+        createdBy: d.created_by,
+        workspaceId: d.workspace_id,
+        x: d.x_coord,
+        y: d.y_coord
+    });
+
+    // Fetch first page of workspaces on mount
     useEffect(() => {
         const fetchWorkspaces = async () => {
             const { data, error } = await supabase
                 .from("workspaces")
-                .select("*")
-                .order("created_at", { ascending: false });
+                .select("id, alias_id, src, width, height, created_by, workspace_id, x_coord, y_coord")
+                .order("created_at", { ascending: false })
+                .range(0, PAGE_SIZE - 1);
 
             if (error) {
                 console.error("Error fetching workspaces:", error);
             } else if (data) {
-                const mapped = data.map(d => ({
-                    id: d.id,
-                    aliasId: d.alias_id,
-                    src: d.src,
-                    w: d.width || 440,
-                    h: d.height || 440,
-                    createdBy: d.created_by,
-                    workspaceId: d.workspace_id,
-                    x: d.x_coord,
-                    y: d.y_coord
-                }));
-                setImages(mapped);
+                setImages(data.map(mapWorkspace));
+                setHasMore(data.length === PAGE_SIZE);
+                offsetRef.current = data.length;
             }
             setLoaded(true);
         };
@@ -49,11 +59,7 @@ export const useImages = (user, showToast) => {
                     const d = payload.new;
                     setImages(prev => {
                         if (prev.find(img => img.id === d.id)) return prev;
-                        const newImg = {
-                            id: d.id, aliasId: d.alias_id, src: d.src, w: d.width || 440, h: d.height || 440, createdBy: d.created_by,
-                            workspaceId: d.workspace_id, x: d.x_coord, y: d.y_coord
-                        };
-                        return [newImg, ...prev];
+                        return [mapWorkspace(d), ...prev];
                     });
                 }
             )
@@ -73,6 +79,29 @@ export const useImages = (user, showToast) => {
 
         return () => supabase.removeChannel(channel);
     }, []);
+
+    // Load more images (pagination)
+    const loadMore = useCallback(async () => {
+        if (loadingMore || !hasMore) return;
+        setLoadingMore(true);
+
+        const { data, error } = await supabase
+            .from("workspaces")
+            .select("id, alias_id, src, width, height, created_by, workspace_id, x_coord, y_coord")
+            .order("created_at", { ascending: false })
+            .range(offsetRef.current, offsetRef.current + PAGE_SIZE - 1);
+
+        if (!error && data) {
+            setImages(prev => {
+                const existingIds = new Set(prev.map(img => img.id));
+                const newImages = data.filter(d => !existingIds.has(d.id)).map(mapWorkspace);
+                return [...prev, ...newImages];
+            });
+            setHasMore(data.length === PAGE_SIZE);
+            offsetRef.current += data.length;
+        }
+        setLoadingMore(false);
+    }, [loadingMore, hasMore]);
 
     // Fetch saved images when user changes
     useEffect(() => {
@@ -154,6 +183,17 @@ export const useImages = (user, showToast) => {
             });
             delete deleteTimeouts.current[id];
 
+            // Also delete from Storage if it's a Storage URL
+            if (imgToDelete.src && !imgToDelete.src.startsWith('data:')) {
+                try {
+                    const url = new URL(imgToDelete.src);
+                    const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/images\/(.+)/);
+                    if (pathMatch) {
+                        await supabase.storage.from('images').remove([pathMatch[1]]);
+                    }
+                } catch (e) { /* ignore parse errors for legacy URLs */ }
+            }
+
             const { error, data } = await supabase
                 .from('workspaces')
                 .delete()
@@ -183,76 +223,99 @@ export const useImages = (user, showToast) => {
         const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
         if (!files.length) return false;
 
-        files.forEach(file => {
+        for (const file of files) {
             setUploadingCount(p => p + 1);
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                const src = ev.target.result;
-                const img = new Image();
-                img.onload = async () => {
-                    let drawW = img.width;
-                    let drawH = img.height;
-                    let insertData = {
-                        alias_id: nanoid(),
-                        src,
-                        width: drawW,
-                        height: drawH,
-                        created_by: user.id
-                    };
 
-                    if (viewTarget === "detail" && selectedImage) {
-                        const maxWidth = 300;
-                        if (drawW > maxWidth) {
-                            drawH = (img.height / img.width) * maxWidth;
-                            drawW = maxWidth;
-                        }
-                        insertData.workspace_id = selectedImage.workspaceId || selectedImage.id;
-                        insertData.x_coord = dropX - (drawW / 2);
-                        insertData.y_coord = dropY - (drawH / 2);
-                    }
+            try {
+                // 1. Read file dimensions
+                const dimensions = await getImageDimensions(file);
+                let drawW = dimensions.width;
+                let drawH = dimensions.height;
 
-                    const { data, error } = await supabase
-                        .from('workspaces')
-                        .insert([insertData])
-                        .select()
-                        .single();
+                // 2. Upload original to Supabase Storage
+                const fileExt = file.name.split('.').pop() || 'png';
+                const filePath = `${user.id}/${nanoid()}.${fileExt}`;
 
-                    if (!error && data) {
-                        const newImg = {
-                            id: data.id,
-                            aliasId: data.alias_id,
-                            src: data.src,
-                            w: data.width,
-                            h: data.height,
-                            createdBy: data.created_by,
-                            workspaceId: data.workspace_id,
-                            x: data.x_coord,
-                            y: data.y_coord
-                        };
-                        setImages(prev => [newImg, ...prev]);
-                    }
+                const { error: uploadError } = await supabase.storage
+                    .from('images')
+                    .upload(filePath, file, {
+                        contentType: file.type,
+                        upsert: false
+                    });
+
+                if (uploadError) {
+                    console.error("Storage upload failed:", uploadError);
+                    showToast("Failed to upload image");
                     setUploadingCount(p => Math.max(0, p - 1));
+                    continue;
+                }
+
+                // 3. Get public URL
+                const { data: urlData } = supabase.storage
+                    .from('images')
+                    .getPublicUrl(filePath);
+
+                const publicUrl = urlData.publicUrl;
+
+                // 4. Insert metadata into database (URL only, no base64)
+                let insertData = {
+                    alias_id: nanoid(),
+                    src: publicUrl,
+                    width: drawW,
+                    height: drawH,
+                    created_by: user.id
                 };
-                img.onerror = () => setUploadingCount(p => Math.max(0, p - 1));
-                img.src = src;
-            };
-            reader.onerror = () => setUploadingCount(p => Math.max(0, p - 1));
-            reader.readAsDataURL(file);
-        });
+
+                if (viewTarget === "detail" && selectedImage) {
+                    const maxWidth = 300;
+                    if (drawW > maxWidth) {
+                        drawH = (dimensions.height / dimensions.width) * maxWidth;
+                        drawW = maxWidth;
+                    }
+                    insertData.workspace_id = selectedImage.workspaceId || selectedImage.id;
+                    insertData.x_coord = dropX - (drawW / 2);
+                    insertData.y_coord = dropY - (drawH / 2);
+                }
+
+                const { data, error } = await supabase
+                    .from('workspaces')
+                    .insert([insertData])
+                    .select()
+                    .single();
+
+                if (!error && data) {
+                    setImages(prev => [mapWorkspace(data), ...prev]);
+                }
+
+            } catch (err) {
+                console.error("Upload error:", err);
+                showToast("Failed to process image");
+            }
+
+            setUploadingCount(p => Math.max(0, p - 1));
+        }
         return true;
     };
 
     const onImageMoved = (id, x, y) => {
+        // Immediate local update (no lag)
         setImages(prevImages => prevImages.map(img => {
             if (img.id === id) return { ...img, x, y };
             return img;
         }));
 
-        supabase.channel('public:workspaces').send({
-            type: 'broadcast',
-            event: 'image_move',
-            payload: { id, x, y }
-        });
+        // Throttled broadcast to other clients (max 20/sec instead of 60)
+        if (!broadcastThrottleRef.current) {
+            broadcastThrottleRef.current = setTimeout(() => {
+                broadcastThrottleRef.current = null;
+            }, 50);
+
+            supabase.channel('public:workspaces').send({
+                type: 'broadcast',
+                event: 'image_move',
+                payload: { id, x, y }
+            });
+        }
     };
 
     const saveImagePosition = async (id, x, y) => {
@@ -268,6 +331,24 @@ export const useImages = (user, showToast) => {
 
     return {
         images, setImages, loaded, savedImages, hiddenImages, uploadingCount,
+        hasMore, loadingMore, loadMore,
         toggleSave, hideImage, deleteImage, handleFilesDrop, onImageMoved, saveImagePosition
     };
+};
+
+// Helper: get image dimensions from a File object
+const getImageDimensions = (file) => {
+    return new Promise((resolve) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve({ width: img.width, height: img.height });
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve({ width: 440, height: 440 }); // Fallback
+        };
+        img.src = url;
+    });
 };

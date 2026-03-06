@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useWindowWidth } from "../lib/useWindowWidth";
 import { Bookmark, Layers, Moon, Sun, MoreHorizontal, ImagePlus } from "lucide-react";
 import { T } from "../lib/theme";
@@ -6,13 +6,29 @@ import { NavBar } from "../components/NavBar";
 
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 
-export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, setCurrentTab, savedImages, toggleSave, hovered, setHovered, loaded, gridPadding, setGridPadding, themeMode, setThemeMode, hideImage, showToast, user, notifications, signInWithGoogle, signOut, deleteImage }) => {
+export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, setCurrentTab, savedImages, toggleSave, hovered, setHovered, loaded, gridPadding, setGridPadding, themeMode, setThemeMode, hideImage, showToast, user, notifications, signInWithGoogle, signOut, deleteImage, hasMore, loadingMore, loadMore }) => {
     const ww = useWindowWidth();
     const cols = ww < 640 ? 2 : ww < 1024 ? 3 : 4;
     const [tabLoaded, setTabLoaded] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [openMenuId, setOpenMenuId] = useState(null);
     const [imageToDelete, setImageToDelete] = useState(null);
+    const sentinelRef = useRef(null);
+
+    // Infinite scroll: observe sentinel element
+    useEffect(() => {
+        if (!sentinelRef.current || !hasMore || !loadMore) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !loadingMore) {
+                    loadMore();
+                }
+            },
+            { rootMargin: '400px' }
+        );
+        observer.observe(sentinelRef.current);
+        return () => observer.disconnect();
+    }, [hasMore, loadingMore, loadMore]);
 
     useEffect(() => {
         setTabLoaded(false);
@@ -179,133 +195,147 @@ export const ExploreView = ({ images, handleFilesDrop, openDetail, currentTab, s
                         <span style={{ fontSize: 16, marginTop: 12, lineHeight: 1.5, maxWidth: 320 }}>{currentTab === "Saved" ? "Save some references to see them here." : "Try adding a link or dropping an image."}</span>
                     </div>
                 ) : (
-                    <div style={{ display: "flex", gap: gridPadding, transition: "gap 300ms ease" }}>
-                        {columns.map((col, ci) => (
-                            <div key={ci} style={{ flex: 1, display: "flex", flexDirection: "column", gap: gridPadding, transition: "gap 300ms ease" }}>
-                                {col.map((img, ri) => {
-                                    const isH = hovered === img.id;
+                    <>
+                        <div style={{ display: "flex", gap: gridPadding, transition: "gap 300ms ease" }}>
+                            {columns.map((col, ci) => (
+                                <div key={ci} style={{ flex: 1, display: "flex", flexDirection: "column", gap: gridPadding, transition: "gap 300ms ease" }}>
+                                    {col.map((img, ri) => {
+                                        const isH = hovered === img.id;
 
-                                    return (
-                                        <div
-                                            key={img.id}
-                                            onClick={() => openDetail(img)}
-                                            onMouseEnter={() => setHovered(img.id)}
-                                            onMouseLeave={() => setHovered(null)}
-                                            style={{
-                                                borderRadius: T.rImg,
-                                                overflow: "hidden",
-                                                cursor: "pointer",
-                                                position: "relative",
-                                                aspectRatio: `${img.w}/${img.h}`,
-                                            }}
-                                        >
-                                            {img.link ? (
-                                                <div style={{ position: "relative", width: "100%", height: "100%", borderRadius: T.rImg, overflow: "hidden", pointerEvents: "none" }}>
-                                                    <div style={{ position: "absolute", top: 12, left: 12, background: "rgba(0,0,0,0.6)", color: "white", padding: "4px 8px", borderRadius: 4, fontSize: 12, fontWeight: 400, zIndex: 5, backdropFilter: "blur(4px)" }}>
-                                                        Website
+                                        return (
+                                            <div
+                                                key={img.id}
+                                                onClick={() => openDetail(img)}
+                                                onMouseEnter={() => setHovered(img.id)}
+                                                onMouseLeave={() => setHovered(null)}
+                                                style={{
+                                                    borderRadius: T.rImg,
+                                                    overflow: "hidden",
+                                                    cursor: "pointer",
+                                                    position: "relative",
+                                                    aspectRatio: `${img.w}/${img.h}`,
+                                                }}
+                                            >
+                                                {img.link ? (
+                                                    <div style={{ position: "relative", width: "100%", height: "100%", borderRadius: T.rImg, overflow: "hidden", pointerEvents: "none" }}>
+                                                        <div style={{ position: "absolute", top: 12, left: 12, background: "rgba(0,0,0,0.6)", color: "white", padding: "4px 8px", borderRadius: 4, fontSize: 12, fontWeight: 400, zIndex: 5, backdropFilter: "blur(4px)" }}>
+                                                            Website
+                                                        </div>
+                                                        <iframe
+                                                            src={img.link}
+                                                            title="Website Preview"
+                                                            style={{
+                                                                width: "400%", height: "400%", transform: "scale(0.25)", transformOrigin: "0 0",
+                                                                border: "none", background: "white", pointerEvents: "none"
+                                                            }}
+                                                            sandbox="allow-same-origin allow-scripts"
+                                                        />
                                                     </div>
-                                                    <iframe
-                                                        src={img.link}
-                                                        title="Website Preview"
+                                                ) : (
+                                                    <ImageWithSkeleton
+                                                        src={img.src}
+                                                        alt=""
+                                                        draggable={false}
                                                         style={{
-                                                            width: "400%", height: "400%", transform: "scale(0.25)", transformOrigin: "0 0",
-                                                            border: "none", background: "white", pointerEvents: "none"
+                                                            width: "100%", height: "100%", objectFit: "cover", display: "block",
                                                         }}
-                                                        sandbox="allow-same-origin allow-scripts"
                                                     />
-                                                </div>
-                                            ) : (
-                                                <ImageWithSkeleton
-                                                    src={img.src}
-                                                    alt=""
-                                                    draggable={false}
+                                                )}
+                                                <div
                                                     style={{
-                                                        width: "100%", height: "100%", objectFit: "cover", display: "block",
+                                                        position: "absolute", inset: 0,
+                                                        background: "rgba(0,0,0,0.15)",
+                                                        opacity: isH || openMenuId === img.id ? 1 : 0,
+                                                        transition: "opacity 300ms ease",
+                                                        pointerEvents: "none",
                                                     }}
                                                 />
-                                            )}
-                                            <div
-                                                style={{
-                                                    position: "absolute", inset: 0,
-                                                    background: "rgba(0,0,0,0.15)",
-                                                    opacity: isH || openMenuId === img.id ? 1 : 0,
-                                                    transition: "opacity 300ms ease",
-                                                    pointerEvents: "none",
-                                                }}
-                                            />
 
-                                            {/* Hover Overlay Icons */}
-                                            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: isH || openMenuId === img.id ? 1 : 0, transition: "opacity 300ms ease", zIndex: 10 }}>
-                                                {/* Save Button */}
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); toggleSave(img.id); }}
-                                                    style={{ position: "absolute", top: 12, right: 12, width: 36, height: 36, borderRadius: T.rFull, background: savedImages.includes(img.id) ? T.accent : T.surface, border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", pointerEvents: "auto", boxShadow: "0 2px 12px rgba(0,0,0,0.1)", transition: "all 180ms ease" }}
-                                                    onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
-                                                    onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-                                                >
-                                                    <Bookmark size={18} fill={savedImages.includes(img.id) ? T.accentText : "none"} color={savedImages.includes(img.id) ? T.accentText : T.text} />
-                                                </button>
+                                                {/* Hover Overlay Icons */}
+                                                <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: isH || openMenuId === img.id ? 1 : 0, transition: "opacity 300ms ease", zIndex: 10 }}>
+                                                    {/* Save Button */}
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); toggleSave(img.id); }}
+                                                        style={{ position: "absolute", top: 12, right: 12, width: 36, height: 36, borderRadius: T.rFull, background: savedImages.includes(img.id) ? T.accent : T.surface, border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", pointerEvents: "auto", boxShadow: "0 2px 12px rgba(0,0,0,0.1)", transition: "all 180ms ease" }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
+                                                        onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+                                                    >
+                                                        <Bookmark size={18} fill={savedImages.includes(img.id) ? T.accentText : "none"} color={savedImages.includes(img.id) ? T.accentText : T.text} />
+                                                    </button>
 
-                                                {/* Connect Button Indicator */}
-                                                {(images.some(other => other.workspaceId === img.id && other.id !== img.id) || img.workspaceId) && (
-                                                    <div style={{ position: "absolute", bottom: 12, left: 12, width: 36, height: 36, borderRadius: T.rFull, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "auto", backdropFilter: "blur(12px)" }}>
-                                                        <Layers size={18} color="white" />
-                                                    </div>
-                                                )}
-                                            </div>
+                                                    {/* Connect Button Indicator */}
+                                                    {(images.some(other => other.workspaceId === img.id && other.id !== img.id) || img.workspaceId) && (
+                                                        <div style={{ position: "absolute", bottom: 12, left: 12, width: 36, height: 36, borderRadius: T.rFull, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "auto", backdropFilter: "blur(12px)" }}>
+                                                            <Layers size={18} color="white" />
+                                                        </div>
+                                                    )}
+                                                </div>
 
-                                            {/* Options Menu Button & Popover */}
-                                            <div style={{ position: "absolute", top: 12, left: 12, opacity: isH || openMenuId === img.id ? 1 : 0, transition: "opacity 300ms ease", zIndex: 20 }}>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === img.id ? null : img.id); }}
-                                                    style={{ width: 36, height: 36, background: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", pointerEvents: "auto", transition: "transform 180ms ease" }}
-                                                    onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
-                                                    onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-                                                >
-                                                    <MoreHorizontal size={24} color="white" style={{ opacity: 1 }} />
-                                                </button>
+                                                {/* Options Menu Button & Popover */}
+                                                <div style={{ position: "absolute", top: 12, left: 12, opacity: isH || openMenuId === img.id ? 1 : 0, transition: "opacity 300ms ease", zIndex: 20 }}>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === img.id ? null : img.id); }}
+                                                        style={{ width: 36, height: 36, background: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", pointerEvents: "auto", transition: "transform 180ms ease" }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+                                                        onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+                                                    >
+                                                        <MoreHorizontal size={24} color="white" style={{ opacity: 1 }} />
+                                                    </button>
 
-                                                {openMenuId === img.id && (
-                                                    <>
-                                                        <div style={{ position: "fixed", inset: 0, zIndex: 190 }} onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
-                                                        <div style={{ position: "absolute", top: 44, left: 0, background: T.surface, borderRadius: 12, padding: 6, width: 160, zIndex: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, display: "flex", flexDirection: "column", gap: 2, animation: "fadeIn 150ms ease" }}>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    navigator.clipboard.writeText(img.src);
-                                                                    showToast("Link copied.");
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                                style={{ width: "100%", background: "none", border: "none", textAlign: "left", padding: "8px 12px", borderRadius: 8, fontSize: 14, fontFamily: T.font, fontWeight: 400, color: T.textSec, cursor: "pointer", transition: "background 150ms ease" }}
-                                                                onMouseEnter={(e) => e.currentTarget.style.background = T.surfaceHover}
-                                                                onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                                                            >
-                                                                Share
-                                                            </button>
-                                                            {user && user.id === img.createdBy && (
+                                                    {openMenuId === img.id && (
+                                                        <>
+                                                            <div style={{ position: "fixed", inset: 0, zIndex: 190 }} onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
+                                                            <div style={{ position: "absolute", top: 44, left: 0, background: T.surface, borderRadius: 12, padding: 6, width: 160, zIndex: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, display: "flex", flexDirection: "column", gap: 2, animation: "fadeIn 150ms ease" }}>
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        setImageToDelete(img.id);
+                                                                        navigator.clipboard.writeText(img.src);
+                                                                        showToast("Link copied.");
                                                                         setOpenMenuId(null);
                                                                     }}
-                                                                    style={{ width: "100%", background: "none", border: "none", textAlign: "left", padding: "8px 12px", borderRadius: 8, fontSize: 14, fontFamily: T.font, fontWeight: 400, color: "#ef4444", cursor: "pointer", transition: "background 150ms ease" }}
+                                                                    style={{ width: "100%", background: "none", border: "none", textAlign: "left", padding: "8px 12px", borderRadius: 8, fontSize: 14, fontFamily: T.font, fontWeight: 400, color: T.textSec, cursor: "pointer", transition: "background 150ms ease" }}
                                                                     onMouseEnter={(e) => e.currentTarget.style.background = T.surfaceHover}
                                                                     onMouseLeave={(e) => e.currentTarget.style.background = "none"}
                                                                 >
-                                                                    Remove
+                                                                    Share
                                                                 </button>
-                                                            )}
-                                                        </div>
-                                                    </>
-                                                )}
+                                                                {user && user.id === img.createdBy && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setImageToDelete(img.id);
+                                                                            setOpenMenuId(null);
+                                                                        }}
+                                                                        style={{ width: "100%", background: "none", border: "none", textAlign: "left", padding: "8px 12px", borderRadius: 8, fontSize: 14, fontFamily: T.font, fontWeight: 400, color: "#ef4444", cursor: "pointer", transition: "background 150ms ease" }}
+                                                                        onMouseEnter={(e) => e.currentTarget.style.background = T.surfaceHover}
+                                                                        onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                                                                    >
+                                                                        Remove
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Infinite scroll sentinel */}
+                        {currentTab !== "Saved" && (
+                            <div ref={sentinelRef} style={{ height: 1, width: '100%' }} />
+                        )}
+
+                        {/* Loading more spinner */}
+                        {loadingMore && (
+                            <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+                                <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${T.textTer}`, borderTopColor: T.text, animation: 'spin 1s linear infinite' }} />
                             </div>
-                        ))}
-                    </div>
+                        )}
+                    </>
                 )}
             </div>
 

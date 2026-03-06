@@ -29,6 +29,7 @@ export default function App() {
     const { notifications } = useNotifications(user);
     const {
         images, loaded, savedImages, hiddenImages, uploadingCount,
+        hasMore, loadingMore, loadMore,
         toggleSave, hideImage, deleteImage: deleteImageBase, handleFilesDrop: handleFilesDropBase,
         onImageMoved, saveImagePosition
     } = useImages(user, showToast);
@@ -249,6 +250,9 @@ export default function App() {
                     notifications={notifications}
                     signInWithGoogle={signInWithGoogle}
                     signOut={signOut}
+                    hasMore={hasMore}
+                    loadingMore={loadingMore}
+                    loadMore={loadMore}
                 />
             )}
             {view === "detail" && (
