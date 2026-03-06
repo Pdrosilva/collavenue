@@ -10,22 +10,7 @@ import { useWindowWidth } from "../lib/useWindowWidth";
 import { useCanvasCamera } from "../hooks/useCanvasCamera";
 import { CommentInput } from "./CommentInput";
 
-const ImageWithSkeleton = ({ src, style, ...props }) => {
-    const [loaded, setLoaded] = useState(false);
-    return (
-        <>
-            {!loaded && (
-                <div style={{ ...style, position: "absolute", inset: 0, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
-            )}
-            <img
-                src={src}
-                style={{ ...style, opacity: loaded ? 1 : 0, transition: "opacity 300ms ease" }}
-                onLoad={() => setLoaded(true)}
-                {...props}
-            />
-        </>
-    );
-};
+import { ImageWithSkeleton } from "./ImageWithSkeleton";
 
 const ThreadReplyInput = ({ onSubmit, currentUser }) => {
     const [text, setText] = useState("");
