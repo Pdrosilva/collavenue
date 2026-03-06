@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { customAlphabet } from 'nanoid';
 import { ExploreView } from "./components/ExploreView";
 import { DetailView } from "./components/DetailView";
 import { INITIAL_IMAGES } from "./lib/mockData";
@@ -7,6 +8,8 @@ import { useWindowWidth } from "./lib/useWindowWidth";
 import { T } from "./lib/theme";
 import { useAuth } from "./components/AuthContext";
 import { supabase } from "./lib/supabase";
+
+const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 8);
 
 export default function App() {
     const [images, setImages] = useState([]);
@@ -50,6 +53,7 @@ export default function App() {
             } else if (data) {
                 const mapped = data.map(d => ({
                     id: d.id,
+                    aliasId: d.alias_id,
                     src: d.src,
                     w: d.width || 440,
                     h: d.height || 440,
@@ -74,7 +78,7 @@ export default function App() {
                     setImages(prev => {
                         if (prev.find(img => img.id === d.id)) return prev;
                         const newImg = {
-                            id: d.id, src: d.src, w: d.width || 440, h: d.height || 440, createdBy: d.created_by,
+                            id: d.id, aliasId: d.alias_id, src: d.src, w: d.width || 440, h: d.height || 440, createdBy: d.created_by,
                             workspaceId: d.workspace_id, x: d.x_coord, y: d.y_coord
                         };
                         return [newImg, ...prev];
@@ -279,7 +283,41 @@ export default function App() {
         };
     }, [view, selectedImage?.id]);
 
-    const openDetail = (img) => {
+    // URL Deep Linking
+    useEffect(() => {
+        const handlePopState = () => {
+            const params = new URLSearchParams(window.location.search);
+            const imageId = params.get("i");
+
+            if (imageId && images.length > 0) {
+                const img = images.find(i => i.aliasId === imageId || i.id === imageId);
+                if (img) {
+                    openDetail(img, false); // false to avoid recursive pushState
+                }
+            } else if (!imageId && view === "detail") {
+                closeDetail(false);
+            }
+        };
+
+        window.addEventListener("popstate", handlePopState);
+        return () => window.removeEventListener("popstate", handlePopState);
+    }, [images, view]);
+
+    // Initial load from URL
+    useEffect(() => {
+        if (loaded && images.length > 0 && view === "explore") {
+            const params = new URLSearchParams(window.location.search);
+            const imageId = params.get("i");
+            if (imageId) {
+                const img = images.find(i => i.aliasId === imageId || i.id === imageId);
+                if (img) {
+                    openDetail(img, false); // false to avoid pushState since it's already in the URL
+                }
+            }
+        }
+    }, [loaded, images]);
+
+    const openDetail = (img, updateUrl = true) => {
         const latestImg = images.find(i => i.id === img.id) || img;
 
         setSelectedImage(latestImg);
@@ -288,6 +326,10 @@ export default function App() {
         setCommentsOpen(false);
         setAddingPin(false);
         setNewPin(null);
+
+        if (updateUrl) {
+            window.history.pushState({}, "", `/?i=${latestImg.aliasId || latestImg.id}`);
+        }
 
         // Center specifically on the selected image
         let panX = 0;
@@ -302,13 +344,17 @@ export default function App() {
         setTimeout(() => setAnimating(false), 60);
     };
 
-    const closeDetail = () => {
+    const closeDetail = (updateUrl = true) => {
         setView("explore");
         setSelectedImage(null);
         setCommentsOpen(false);
         setAddingPin(false);
         setNewPin(null);
         setComments([]); // Clear comments on close so it doesn't leak to next image
+
+        if (updateUrl) {
+            window.history.pushState({}, "", "/");
+        }
     };
 
     const toggleStar = async (id) => {
@@ -630,6 +676,7 @@ export default function App() {
                     let drawW = img.width;
                     let drawH = img.height;
                     let insertData = {
+                        alias_id: nanoid(),
                         src,
                         width: drawW,
                         height: drawH,
@@ -664,6 +711,7 @@ export default function App() {
                     if (!error && data) {
                         const newImg = {
                             id: data.id,
+                            aliasId: data.alias_id,
                             src: data.src,
                             w: data.width,
                             h: data.height,
