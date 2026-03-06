@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { customAlphabet } from 'nanoid';
 import { ExploreView } from "./components/ExploreView";
 import { DetailView } from "./components/DetailView";
-import { INITIAL_IMAGES } from "./lib/mockData";
+
 import { avatarSvg } from "./lib/svgGenerator";
 import { useWindowWidth } from "./lib/useWindowWidth";
 import { T } from "./lib/theme";

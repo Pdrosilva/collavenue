@@ -1,7 +1,6 @@
-import { Plus, Search, Layers, Compass, ArrowRightSquare, User, Bell } from "lucide-react";
+import { User, Bell } from "lucide-react";
 import { useState } from "react";
 import { T } from "../lib/theme";
-import { AVATAR_MAIN } from "../lib/mockData";
 import { useWindowWidth } from "../lib/useWindowWidth";
 
 export const NavBar = ({ onLogoClick, onAddClick, onSettingsClick, currentTab, setCurrentTab, user, notifications = [] }) => {
