@@ -188,19 +188,39 @@ export const useComments = (view, selectedImage, user, showToast) => {
             console.error(error);
             showToast("Failed: " + error.message + " " + (error.details || ""));
             setComments(p => p.filter(c => c.id !== newComment.id));
-        }
-        else if (mentionedUsers.length > 0) {
-            const mentionNotifications = mentionedUsers.map(u => ({
-                user_id: u.id,
-                actor_id: user.id,
-                actor_name: user.name,
-                actor_avatar: user.avatar,
-                workspace_id: workspaceId,
-                comment_id: newComment.id,
-                type: 'mention',
-                read: false
-            }));
-            await supabase.from("notifications").insert(mentionNotifications);
+        } else {
+            // Notify parent comment author about the reply
+            if (parentComment && parentComment.authorId && parentComment.authorId !== user.id) {
+                await supabase.from('notifications').insert([{
+                    user_id: parentComment.authorId,
+                    actor_id: user.id,
+                    actor_name: user.name,
+                    actor_avatar: user.avatar,
+                    type: 'reply',
+                    comment_id: newComment.id,
+                    workspace_id: workspaceId,
+                    read: false
+                }]);
+            }
+
+            // Notify mentioned users
+            if (mentionedUsers.length > 0) {
+                const mentionNotifications = mentionedUsers
+                    .filter(u => u.id !== user.id) // Don't notify yourself
+                    .map(u => ({
+                        user_id: u.id,
+                        actor_id: user.id,
+                        actor_name: user.name,
+                        actor_avatar: user.avatar,
+                        workspace_id: workspaceId,
+                        comment_id: newComment.id,
+                        type: 'mention',
+                        read: false
+                    }));
+                if (mentionNotifications.length > 0) {
+                    await supabase.from("notifications").insert(mentionNotifications);
+                }
+            }
         }
     };
 

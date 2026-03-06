@@ -92,7 +92,7 @@ export const NavBar = ({ onLogoClick, onAddClick, onSettingsClick, currentTab, s
                                                 </div>
                                                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                                                     <span style={{ fontSize: 15, fontFamily: T.font, color: T.text, lineHeight: 1.4, fontWeight: 400 }}>
-                                                        <strong style={{ fontWeight: 500, color: T.text }}>{n.actor_name}</strong> {n.type === 'like' ? 'curtiu seu comentário' : 'mencionou você'}
+                                                        <strong style={{ fontWeight: 500, color: T.text }}>{n.actor_name}</strong> {n.type === 'like' ? 'curtiu seu comentário' : n.type === 'reply' ? 'respondeu seu comentário' : 'mencionou você'}
                                                     </span>
                                                 </div>
                                             </div>
