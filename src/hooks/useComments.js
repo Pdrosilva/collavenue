@@ -1,6 +1,21 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 
+const timeAgo = (dateParam) => {
+    if (!dateParam) return "agora";
+    const date = typeof dateParam === 'object' ? dateParam : new Date(dateParam);
+    const today = new Date();
+    const seconds = Math.round((today - date) / 1000);
+    const minutes = Math.round(seconds / 60);
+    const hours = Math.round(minutes / 60);
+    const days = Math.round(hours / 24);
+
+    if (seconds < 60) return "agora";
+    if (minutes < 60) return `${minutes}m`;
+    if (hours < 24) return `${hours}h`;
+    return `${days}d`;
+};
+
 export const useComments = (view, selectedImage, user, showToast) => {
     const [comments, setComments] = useState([]);
     const [commentsLoading, setCommentsLoading] = useState(false);
@@ -42,7 +57,7 @@ export const useComments = (view, selectedImage, user, showToast) => {
                     parentId: c.parent_id,
                     stars: c.stars,
                     starred: userLikes.includes(c.id),
-                    time: "now", relativeTime: ""
+                    time: "agora", relativeTime: timeAgo(c.created_at)
                 }));
                 setComments(mapped);
             }
@@ -71,7 +86,7 @@ export const useComments = (view, selectedImage, user, showToast) => {
                             parentId: c.parent_id,
                             stars: c.stars,
                             starred: false,
-                            time: "now", relativeTime: ""
+                            time: "agora", relativeTime: timeAgo(c.created_at)
                         }];
                     });
                 }
@@ -179,7 +194,7 @@ export const useComments = (view, selectedImage, user, showToast) => {
             parentId: newComment.parent_id,
             stars: newComment.stars,
             starred: false,
-            time: "now", relativeTime: ""
+            time: "agora", relativeTime: "agora"
         }]);
 
         const { error } = await supabase.from('comments').insert([newComment]);
@@ -236,7 +251,7 @@ export const useComments = (view, selectedImage, user, showToast) => {
 
         setComments((p) => [
             ...p,
-            { id: tempId, workspaceId: activeWspId, authorId: user.id, author: user.name, avatar: user.avatar, time: "now", relativeTime: "", text: newText, stars: 0, starred: false, pinX: newPin.x, pinY: newPin.y }
+            { id: tempId, workspaceId: activeWspId, authorId: user.id, author: user.name, avatar: user.avatar, time: "agora", relativeTime: "agora", text: newText, stars: 0, starred: false, pinX: newPin.x, pinY: newPin.y }
         ]);
 
         const insertData = {

@@ -390,7 +390,7 @@ export const DetailView = ({
             const logicalX = (-pan.x) / scale;
             const logicalY = (-pan.y) / scale;
 
-            handleFilesDrop(syntheticEvent, "detail", logicalX, logicalY);
+            handleFilesDrop(syntheticEvent, "detail", logicalX, logicalY, selectedImage);
         };
         window.addEventListener("paste", handlePaste);
         return () => window.removeEventListener("paste", handlePaste);
