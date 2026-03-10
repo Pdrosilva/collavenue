@@ -128,6 +128,11 @@ body {
     background-clip: padding-box;
 }
 
+@keyframes toastTimer {
+    0% { stroke-dashoffset: 113; }
+    100% { stroke-dashoffset: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
 
     *,

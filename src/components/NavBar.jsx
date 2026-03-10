@@ -80,6 +80,7 @@ export const NavBar = ({ onLogoClick, onAddClick, onSettingsClick, currentTab, s
                                                 padding: "12px 16px", background: n.read ? "transparent" : "rgba(59, 130, 246, 0.05)",
                                                 cursor: "pointer", transition: "background 150ms ease"
                                             }}
+                                                onClick={() => { window.location.href = `/?i=${n.workspace_id}`; }}
                                                 onMouseEnter={e => e.currentTarget.style.background = T.ghost}
                                                 onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : "rgba(59, 130, 246, 0.05)"}
                                             >

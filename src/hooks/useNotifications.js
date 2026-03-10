@@ -32,12 +32,17 @@ export const useNotifications = (user, showToast) => {
                     setNotifications(prev => [payload.new, ...prev]);
                     if (showToast) {
                         const actor = payload.new.actor_name || "Alguém";
-                        let msg = "Nova notificação";
-                        if (payload.new.type === "like") msg = `${actor} curtiu seu comentário!`;
-                        if (payload.new.type === "reply") msg = `${actor} respondeu seu comentário!`;
-                        if (payload.new.type === "mention") msg = `${actor} mencionou você!`;
+                        let actionMsg = "enviou uma notificação";
+                        if (payload.new.type === "like") actionMsg = "curtiu seu comentário!";
+                        if (payload.new.type === "reply") actionMsg = "respondeu seu comentário!";
+                        if (payload.new.type === "mention") actionMsg = "mencionou você!";
 
-                        showToast(msg, 5000); // 5 seconds toast
+                        showToast({
+                            type: 'notification',
+                            actor: actor,
+                            action: actionMsg,
+                            workspaceId: payload.new.workspace_id
+                        }, 5000); // 5 seconds toast
                     }
                 }
             )

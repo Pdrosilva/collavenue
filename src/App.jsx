@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ArrowRight } from "lucide-react";
 import { ExploreView } from "./components/ExploreView";
 import { DetailView } from "./components/DetailView";
 import { T } from "./lib/theme";
@@ -173,28 +174,60 @@ export default function App() {
         >
             {/* Toast Notification */}
             <div style={{
-                position: "fixed", bottom: 40, left: "50%", background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 400, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999,
+                position: "fixed", bottom: 40, left: 32,
+                background: T.surface, color: T.text,
+                padding: (toastState.content?.text?.type === 'notification') ? "8px 8px 8px 20px" : "12px 24px",
+                borderRadius: T.rFull, fontSize: 14, fontWeight: 400,
+                boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999,
                 display: "flex", alignItems: "center", gap: 16,
-                transform: toastState.visible ? "translate(-50%, 0)" : "translate(-50%, 20px)",
+                transform: toastState.visible ? "translateY(0)" : "translateY(20px)",
                 opacity: toastState.visible ? 1 : 0,
                 pointerEvents: toastState.visible ? "auto" : "none",
                 transition: "transform 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease"
             }}>
                 {toastState.content && (
-                    <>
-                        <span>{toastState.content.text}</span>
-                        {toastState.content.action && (
+                    typeof toastState.content.text === 'object' && toastState.content.text.type === 'notification' ? (
+                        <>
+                            <span>
+                                <strong style={{ color: T.text, fontWeight: 600 }}>{toastState.content.text.actor}</strong>{' '}
+                                <span style={{ color: T.textSec }}>{toastState.content.text.action}</span>
+                            </span>
                             <button
                                 onClick={() => {
                                     hideToast();
-                                    toastState.content.action.onClick();
+                                    window.location.href = `/?i=${toastState.content.text.workspaceId}`;
                                 }}
-                                style={{ background: "none", border: "none", color: "#3B82F6", fontWeight: 500, cursor: "pointer", padding: 0, fontSize: 14, marginLeft: "auto" }}
+                                style={{
+                                    width: 40, height: 40, borderRadius: '50%', background: T.surfaceHover, border: 'none',
+                                    position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    padding: 0
+                                }}
                             >
-                                {toastState.content.action.label}
+                                <ArrowRight size={18} color={T.text} />
+                                <svg style={{ position: 'absolute', inset: 0, transform: 'rotate(-90deg)' }} width="40" height="40">
+                                    <circle cx="20" cy="20" r="18" fill="none" stroke={T.surfaceBorder} strokeWidth="2" />
+                                    {toastState.visible && (
+                                        <circle cx="20" cy="20" r="18" fill="none" stroke={T.text} strokeWidth="2" strokeDasharray="113" strokeDashoffset="0" style={{ animation: 'toastTimer 5s linear forwards' }} />
+                                    )}
+                                </svg>
                             </button>
-                        )}
-                    </>
+                        </>
+                    ) : (
+                        <>
+                            <span>{toastState.content.text}</span>
+                            {toastState.content.action && (
+                                <button
+                                    onClick={() => {
+                                        hideToast();
+                                        toastState.content.action.onClick();
+                                    }}
+                                    style={{ background: "none", border: "none", color: "#3B82F6", fontWeight: 500, cursor: "pointer", padding: 0, fontSize: 14, marginLeft: "auto" }}
+                                >
+                                    {toastState.content.action.label}
+                                </button>
+                            )}
+                        </>
+                    )
                 )}
             </div>
 
@@ -217,11 +250,11 @@ export default function App() {
 
             {/* Uploading Pill */}
             <div style={{
-                position: "fixed", bottom: toastState.visible ? 96 : 40, left: "50%", background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 500, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999, display: "flex", alignItems: "center", gap: 12,
+                position: "fixed", bottom: 40, left: "50%", background: T.surface, color: T.text, padding: "12px 24px", borderRadius: T.rFull, fontSize: 14, fontWeight: 500, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: `1px solid ${T.surfaceBorder}`, zIndex: 9999, display: "flex", alignItems: "center", gap: 12,
                 transform: `translateX(-50%) ${uploadingCount > 0 ? 'translateY(0)' : 'translateY(20px)'}`,
                 opacity: uploadingCount > 0 ? 1 : 0,
                 pointerEvents: uploadingCount > 0 ? "auto" : "none",
-                transition: "transform 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease, bottom 300ms cubic-bezier(0.16, 1, 0.3, 1)"
+                transition: "transform 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease"
             }}>
                 <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${T.textTer}`, borderTopColor: T.text, animation: "spin 1s linear infinite" }} />
                 Uploading...
