@@ -26,7 +26,7 @@ export default function App() {
 
     const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth();
     const { toastState, showToast, hideToast } = useToast();
-    const { notifications } = useNotifications(user);
+    const { notifications } = useNotifications(user, showToast);
     const {
         images, loaded, savedImages, hiddenImages, uploadingCount,
         hasMore, loadingMore, loadMore,
