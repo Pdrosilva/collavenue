@@ -161,7 +161,9 @@ export const useComments = (view, selectedImage, user, showToast) => {
         let mentionedUsers = [];
         if (mentionsMatch) {
             const usernames = mentionsMatch.map(m => m.substring(1));
-            const { data } = await supabase.from("profiles").select("id, name").in("name", usernames);
+            // Using ilike or ensuring we find them. Supabase .in() is exact match, which might be failing due to case.
+            const orQuery = usernames.map(u => `name.ilike.%${u}%`).join(',');
+            const { data } = await supabase.from("profiles").select("id, name").or(orQuery);
             if (data) mentionedUsers = data;
         }
 
@@ -268,7 +270,8 @@ export const useComments = (view, selectedImage, user, showToast) => {
         let mentionedUsers = [];
         if (mentionsMatch) {
             const usernames = mentionsMatch.map(m => m.substring(1));
-            const { data } = await supabase.from("profiles").select("id, name").in("name", usernames);
+            const orQuery = usernames.map(u => `name.ilike.%${u}%`).join(',');
+            const { data } = await supabase.from("profiles").select("id, name").or(orQuery);
             if (data) mentionedUsers = data;
         }
 
