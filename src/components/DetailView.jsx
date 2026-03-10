@@ -617,9 +617,7 @@ export const DetailView = ({
                         />
                     )}
 
-                    {cursors && Object.keys(cursors).length > 0 && (
-                        <LiveCursors cursors={cursors} />
-                    )}
+
                 </div>
 
                 {contextMenu && (
