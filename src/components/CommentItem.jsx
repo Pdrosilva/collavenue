@@ -77,7 +77,7 @@ export const CommentItem = ({ c, i: idx, toggleStar, editComment, deleteComment,
                             <img src={c.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         </div>
                         <span style={{ fontSize: 14, opacity: 0.7, letterSpacing: "-0.14px", fontWeight: 400 }}>{c.author}</span>
-                        <span style={{ fontSize: 14, opacity: 0.4, letterSpacing: "-0.14px" }}>{c.time}</span>
+                        <span style={{ fontSize: 14, opacity: 0.4, letterSpacing: "-0.14px" }}>{c.relativeTime || c.time}</span>
                     </div>
                     {isOwn ? (
                         <div style={{ position: "relative" }}>
@@ -112,11 +112,7 @@ export const CommentItem = ({ c, i: idx, toggleStar, editComment, deleteComment,
                             )}
                         </div>
                     ) : (
-                        c.relativeTime ? (
-                            <span style={{ fontSize: 14, opacity: 0.4, letterSpacing: "-0.14px", flexShrink: 0 }}>{c.relativeTime}</span>
-                        ) : (
-                            <div style={{ width: 32, height: 32 }} /> // Empty placeholder to keep layout balanced
-                        )
+                        <div style={{ width: 32, height: 32 }} /> // Empty placeholder to keep layout balanced
                     )}
                 </div>
 
