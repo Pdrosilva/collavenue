@@ -329,9 +329,29 @@ export const useImages = (user, showToast) => {
         }
     };
 
+    const fetchImage = async (id) => {
+        const { data, error } = await supabase
+            .from("workspaces")
+            .select("id, alias_id, src, width, height, created_by, workspace_id, x_coord, y_coord")
+            .or(`id.eq.${id},alias_id.eq.${id}`)
+            .single();
+
+        if (!error && data) {
+            const newImg = mapWorkspace(data);
+            setImages(prev => {
+                if (!prev.find(img => img.id === newImg.id)) {
+                    return [...prev, newImg];
+                }
+                return prev;
+            });
+            return newImg;
+        }
+        return null;
+    };
+
     return {
         images, setImages, loaded, savedImages, hiddenImages, uploadingCount,
-        hasMore, loadingMore, loadMore,
+        hasMore, loadingMore, loadMore, fetchImage,
         toggleSave, hideImage, deleteImage, handleFilesDrop, onImageMoved, saveImagePosition
     };
 };

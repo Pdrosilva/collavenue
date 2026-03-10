@@ -33,7 +33,7 @@ export default function App() {
     const { notifications } = useNotifications(user, showToast);
     const {
         images, loaded, savedImages, hiddenImages, uploadingCount,
-        hasMore, loadingMore, loadMore,
+        hasMore, loadingMore, loadMore, fetchImage,
         toggleSave, hideImage, deleteImage: deleteImageBase, handleFilesDrop: handleFilesDropBase,
         onImageMoved, saveImagePosition
     } = useImages(user, showToast);
@@ -87,46 +87,6 @@ export default function App() {
         return () => window.removeEventListener("paste", handlePaste);
     }, [view, images]);
 
-    // URL Deep Linking — popstate
-    useEffect(() => {
-        const handlePopState = () => {
-            const params = new URLSearchParams(window.location.search);
-            const imageId = params.get("i");
-
-            if (imageId && images.length > 0) {
-                const img = images.find(i => i.aliasId === imageId || i.id === imageId);
-                if (img) {
-                    openDetail(img, false);
-                }
-            } else if (!imageId && view === "detail") {
-                closeDetail(false);
-            }
-        };
-
-        window.addEventListener("popstate", handlePopState);
-        return () => window.removeEventListener("popstate", handlePopState);
-    }, [images, view]);
-
-    // Extract URL handling to adapt to the new initialView
-    useEffect(() => {
-        if (loaded) {
-            const params = new window.URLSearchParams(window.location.search);
-            const imageId = params.get("i");
-
-            if (imageId) {
-                const img = images.find(i => i.aliasId === imageId || i.id === imageId);
-                if (img) {
-                    if (!selectedImage || selectedImage.id !== img.id) {
-                        openDetail(img, false);
-                    }
-                } else if (images.length > 0) {
-                    // image not found after fully loading
-                    closeDetail(true);
-                }
-            }
-        }
-    }, [loaded, images, selectedImage]);
-
     const openDetail = (img, updateUrl = true) => {
         const latestImg = images.find(i => i.id === img.id) || img;
 
@@ -166,6 +126,63 @@ export default function App() {
         }
     };
 
+    const openDetailOrFetch = async (imageId) => {
+        let img = images.find(i => i.aliasId === imageId || i.id === imageId);
+        if (img) {
+            openDetail(img, true);
+        } else {
+            setAnimating(true);
+            setView("detail");
+            setSelectedImage(null);
+            const fetched = await fetchImage(imageId);
+            if (fetched) {
+                openDetail(fetched, true);
+            } else {
+                closeDetail(true);
+                showToast("Workspace not found or deleted.", 4000);
+            }
+        }
+    };
+
+    // URL Deep Linking — popstate
+    useEffect(() => {
+        const handlePopState = () => {
+            const params = new URLSearchParams(window.location.search);
+            const imageId = params.get("i");
+
+            if (imageId) {
+                openDetailOrFetch(imageId);
+            } else if (!imageId && view === "detail") {
+                closeDetail(false);
+            }
+        };
+
+        window.addEventListener("popstate", handlePopState);
+        return () => window.removeEventListener("popstate", handlePopState);
+    }, [images, view]);
+
+    // Extract URL handling to adapt to the new initialView
+    useEffect(() => {
+        if (loaded) {
+            const params = new window.URLSearchParams(window.location.search);
+            const imageId = params.get("i");
+
+            if (imageId) {
+                const img = images.find(i => i.aliasId === imageId || i.id === imageId);
+                if (img) {
+                    if (!selectedImage || selectedImage.id !== img.id) {
+                        openDetail(img, false);
+                    }
+                } else if (!selectedImage && images.length > 0) {
+                    // image not found in first load, try fetching
+                    openDetailOrFetch(imageId);
+                }
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loaded, images.length]);
+
+
     if (authLoading) return <div style={{ minHeight: "100vh", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontFamily: T.font }}>Loading session...</div>;
 
     return (
@@ -204,7 +221,7 @@ export default function App() {
                             <button
                                 onClick={() => {
                                     hideToast();
-                                    window.location.href = `/?i=${toastState.content.text.workspaceId}`;
+                                    openDetailOrFetch(toastState.content.text.workspaceId);
                                 }}
                                 style={{
                                     width: 40, height: 40, borderRadius: '50%', background: T.surfaceHover, border: 'none',
@@ -290,6 +307,7 @@ export default function App() {
                     setThemeMode={setThemeMode}
                     user={user}
                     notifications={notifications}
+                    onNotificationClick={openDetailOrFetch}
                     signInWithGoogle={signInWithGoogle}
                     signOut={signOut}
                     hasMore={hasMore}

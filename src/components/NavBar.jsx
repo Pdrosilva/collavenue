@@ -3,7 +3,7 @@ import { useState } from "react";
 import { T } from "../lib/theme";
 import { useWindowWidth } from "../lib/useWindowWidth";
 
-export const NavBar = ({ onLogoClick, onAddClick, onSettingsClick, currentTab, setCurrentTab, user, notifications = [] }) => {
+export const NavBar = ({ onLogoClick, onAddClick, onSettingsClick, currentTab, setCurrentTab, user, notifications = [], onNotificationClick }) => {
     const ww = useWindowWidth();
     const [isHoveringBell, setIsHoveringBell] = useState(false);
 
@@ -80,7 +80,13 @@ export const NavBar = ({ onLogoClick, onAddClick, onSettingsClick, currentTab, s
                                                 padding: "12px 16px", background: n.read ? "transparent" : "rgba(59, 130, 246, 0.05)",
                                                 cursor: "pointer", transition: "background 150ms ease"
                                             }}
-                                                onClick={() => { window.location.href = `/?i=${n.workspace_id}`; }}
+                                                onClick={() => {
+                                                    if (onNotificationClick) {
+                                                        onNotificationClick(n.workspace_id);
+                                                    } else {
+                                                        window.location.href = `/?i=${n.workspace_id}`;
+                                                    }
+                                                }}
                                                 onMouseEnter={e => e.currentTarget.style.background = T.ghost}
                                                 onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : "rgba(59, 130, 246, 0.05)"}
                                             >
