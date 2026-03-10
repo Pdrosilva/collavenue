@@ -10,7 +10,10 @@ import { useImages } from "./hooks/useImages";
 import { useComments } from "./hooks/useComments";
 
 export default function App() {
-    const [view, setView] = useState("explore");
+    const initialUrlParams = new window.URLSearchParams(window.location.search);
+    const initialView = initialUrlParams.get('i') ? 'detail' : 'explore';
+
+    const [view, setView] = useState(initialView);
     const [currentTab, setCurrentTab] = useState("Explore");
     const [selectedImage, setSelectedImage] = useState(null);
     const [commentsOpen, setCommentsOpen] = useState(false);
@@ -104,19 +107,25 @@ export default function App() {
         return () => window.removeEventListener("popstate", handlePopState);
     }, [images, view]);
 
-    // Initial load from URL
+    // Extract URL handling to adapt to the new initialView
     useEffect(() => {
-        if (loaded && images.length > 0 && view === "explore") {
-            const params = new URLSearchParams(window.location.search);
+        if (loaded) {
+            const params = new window.URLSearchParams(window.location.search);
             const imageId = params.get("i");
+
             if (imageId) {
                 const img = images.find(i => i.aliasId === imageId || i.id === imageId);
                 if (img) {
-                    openDetail(img, false);
+                    if (!selectedImage || selectedImage.id !== img.id) {
+                        openDetail(img, false);
+                    }
+                } else if (images.length > 0) {
+                    // image not found after fully loading
+                    closeDetail(true);
                 }
             }
         }
-    }, [loaded, images]);
+    }, [loaded, images, selectedImage]);
 
     const openDetail = (img, updateUrl = true) => {
         const latestImg = images.find(i => i.id === img.id) || img;
@@ -292,6 +301,7 @@ export default function App() {
                 <DetailView
                     images={images}
                     selectedImage={images.find(img => img.id === selectedImage?.id) || selectedImage}
+                    loaded={loaded}
                     closeDetail={closeDetail}
                     comments={comments}
                     commentsOpen={commentsOpen}

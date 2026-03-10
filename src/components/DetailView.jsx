@@ -269,6 +269,7 @@ const LiveCursors = ({ cursors }) => {
 export const DetailView = ({
     images,
     selectedImage,
+    loaded,
     closeDetail,
     comments,
     commentsOpen,
@@ -298,7 +299,46 @@ export const DetailView = ({
     submitReply
 }) => {
     const ww = useWindowWidth();
-    if (!selectedImage) return null;
+
+    // Show Skeleton if waiting for the image to load
+    if (!selectedImage) {
+        return (
+            <div style={{ position: "fixed", inset: 0, background: T.bg, zIndex: 50, display: "flex", flexDirection: "column" }}>
+                <button
+                    onClick={(e) => { e.stopPropagation(); closeDetail(); }}
+                    style={{ position: "absolute", top: 32, left: 32, width: 48, height: 48, borderRadius: 24, background: T.surface, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", zIndex: 100, boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}
+                >
+                    <ArrowLeft size={20} color={T.text} style={{ opacity: 0.7 }} />
+                </button>
+
+                <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ width: ww < 768 ? '80%' : 440, height: ww < 768 ? '80vw' : 440, borderRadius: 16, background: "rgba(0,0,0,0.03)", animation: "skeletonPulse 1.5s ease-in-out infinite", boxShadow: "0 4px 24px rgba(0,0,0,0.04)" }} />
+                </div>
+
+                <div style={{
+                    position: "fixed", right: ww >= 768 ? 32 : 0, top: ww >= 768 ? 32 : 0, bottom: ww >= 768 ? 32 : 0, width: ww < 768 ? "100vw" : 440,
+                    background: T.surface, borderRadius: ww >= 768 ? 24 : 0, boxShadow: ww >= 768 ? "0 24px 80px rgba(0,0,0,0.12)" : "none", zIndex: 200, display: "flex", flexDirection: "column"
+                }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 31px" }}>
+                        <div style={{ width: 100, height: 24, borderRadius: 6, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+                        <div style={{ width: 40, height: 40, borderRadius: 20, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+                    </div>
+                    <div style={{ flex: 1, padding: "0 31px" }}>
+                        {[1, 2, 3].map(i => (
+                            <div key={i} style={{ marginBottom: 24 }}>
+                                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                                    <div style={{ width: 32, height: 32, borderRadius: 16, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+                                    <div style={{ width: 120, height: 14, borderRadius: 4, background: "rgba(0,0,0,0.05)", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+                                </div>
+                                <div style={{ marginTop: 12, height: 14, background: "rgba(0,0,0,0.05)", borderRadius: 4, width: "100%", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+                                <div style={{ marginTop: 8, height: 14, background: "rgba(0,0,0,0.05)", borderRadius: 4, width: "80%", animation: "skeletonPulse 1.5s ease-in-out infinite" }} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
     const panelW = ww < 768 ? ww : 440;
     const imgShift = 0;
 
